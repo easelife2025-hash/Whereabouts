@@ -1,0 +1,6 @@
+{
+  "name": "Whereabouts",
+  "description": "A mobile-first location-sharing app foundation.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
