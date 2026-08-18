@@ -149,7 +149,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
                 className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-4 px-4 text-[16px] font-medium focus:ring-2 focus:ring-[#F9C300] focus:border-[#F9C300] outline-none transition-all placeholder:text-zinc-400 text-zinc-900 disabled:opacity-60"
-                placeholder="emily@example.com"
+                placeholder="your.email@example.com"
                 autoCapitalize="none"
                 autoComplete="email"
               />
