@@ -48,6 +48,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(timeoutId);
       setUser(authUser);
       
+      // Unblock UI immediately once we know the auth state. 
+      // The profile will load asynchronously in the background.
+      if (isMounted) setLoading(false);
+      
       if (authUser) {
         const userRef = doc(db, 'users', authUser.uid);
         
@@ -62,9 +66,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               createdAt: Date.now()
             });
           }
-        } catch (err) {
-          console.error("Error setting up user profile", err);
-          if (isMounted) setLoading(false);
+        } catch (err: any) {
+          if (err?.message?.includes('offline')) {
+            console.warn("Firebase is offline, using fallback auth data.");
+          } else {
+            console.error("Error setting up user profile:", err);
+          }
         }
 
         unsubscribeDB = onSnapshot(userRef, (snap) => {
@@ -74,15 +81,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           } else {
             setProfile(null);
           }
-          setLoading(false);
-        }, (error) => {
-          console.error("Firebase DB Error:", error);
-          if (isMounted) setLoading(false);
+        }, (error: any) => {
+          if (error?.message?.includes('offline')) {
+            console.warn("Firebase snapshot is offline.");
+          } else {
+            console.error("Firebase DB Error:", error);
+          }
         });
       } else {
         if (isMounted) {
           setProfile(null);
-          setLoading(false);
         }
       }
     });
