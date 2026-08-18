@@ -6,10 +6,12 @@ import { motion, AnimatePresence } from 'motion/react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 export default function Header() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const pathname = usePathname();
+  const { user, profile } = useAuth();
 
   const getPageTitle = () => {
     switch (pathname) {
@@ -31,6 +33,10 @@ export default function Header() {
     { icon: Info, label: 'About', href: '/about' },
   ];
 
+  const profileName = profile?.name || user?.displayName || 'User';
+  const profileEmail = profile?.email || user?.email || '';
+  const imgSeed = profile?.imgSeed || 'me';
+
   return (
     <>
       <header className="flex items-center justify-between px-4 h-[60px] bg-white sticky top-0 z-40 shrink-0 border-b border-zinc-100">
@@ -47,7 +53,7 @@ export default function Header() {
         <div className="flex items-center text-zinc-900 pr-2">
           <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-200 cursor-pointer active:opacity-70 transition-opacity">
             <Image 
-              src="https://picsum.photos/seed/me/100" 
+              src={`https://picsum.photos/seed/${imgSeed}/100`} 
               alt="Profile" 
               width={32} 
               height={32} 
@@ -82,21 +88,21 @@ export default function Header() {
                 <div className="px-6 py-8 border-b border-zinc-100 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <Image 
-                      src="https://picsum.photos/seed/me/100" 
+                      src={`https://picsum.photos/seed/${imgSeed}/100`} 
                       alt="Profile" 
                       width={56} 
                       height={56} 
                       className="rounded-full object-cover border border-zinc-200"
                       referrerPolicy="no-referrer"
                     />
-                    <div>
-                      <h2 className="text-lg font-bold text-zinc-900">Emily Carter</h2>
-                      <p className="text-sm font-medium text-zinc-500">emily@example.com</p>
+                    <div className="overflow-hidden">
+                      <h2 className="text-lg font-bold text-zinc-900 truncate">{profileName}</h2>
+                      <p className="text-sm font-medium text-zinc-500 truncate">{profileEmail}</p>
                     </div>
                   </div>
                   <button 
                     onClick={() => setIsDrawerOpen(false)}
-                    className="w-10 h-10 flex items-center justify-center bg-zinc-100 rounded-full active:bg-zinc-200 transition-colors"
+                    className="w-10 h-10 flex items-center justify-center bg-zinc-100 rounded-full active:bg-zinc-200 transition-colors shrink-0"
                   >
                     <X size={20} strokeWidth={2.5} className="text-zinc-900" />
                   </button>

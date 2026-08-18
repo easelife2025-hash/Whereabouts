@@ -69,6 +69,15 @@ export default function SignUpPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       if (userCredential.user) {
         await updateProfile(userCredential.user, { displayName: name.trim() });
+        const { ref, set } = await import('firebase/database');
+        const { rtdb } = await import('@/lib/firebase');
+        const userRef = ref(rtdb, 'users/' + userCredential.user.uid);
+        await set(userRef, {
+          name: name.trim(),
+          email: userCredential.user.email,
+          imgSeed: Math.floor(Math.random() * 1000).toString(),
+          createdAt: Date.now()
+        });
       }
     } catch (err: any) {
       let errorMessage = err.message || 'Failed to create account.';
@@ -126,7 +135,7 @@ export default function SignUpPage() {
                 onChange={(e) => setName(e.target.value)}
                 disabled={isLoading}
                 className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-4 px-4 text-[16px] font-medium focus:ring-2 focus:ring-[#F9C300] focus:border-[#F9C300] outline-none transition-all placeholder:text-zinc-400 text-zinc-900 disabled:opacity-60"
-                placeholder="Emily Carter"
+                placeholder="Full Name"
               />
             </div>
 
@@ -138,7 +147,7 @@ export default function SignUpPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
                 className="w-full bg-zinc-50 border border-zinc-200 rounded-2xl py-4 px-4 text-[16px] font-medium focus:ring-2 focus:ring-[#F9C300] focus:border-[#F9C300] outline-none transition-all placeholder:text-zinc-400 text-zinc-900 disabled:opacity-60"
-                placeholder="emily@example.com"
+                placeholder="name@example.com"
                 autoCapitalize="none"
                 autoComplete="email"
               />
