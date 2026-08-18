@@ -1,8 +1,8 @@
 'use client';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { ref, onValue, set, get } from 'firebase/database';
-import { auth, rtdb } from '@/lib/firebase';
+import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
@@ -35,18 +35,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let unsubscribeDB: (() => void) | undefined;
+    let isMounted = true;
+
+    const timeoutId = setTimeout(() => {
+      if (isMounted && loading) {
+        console.warn("Firebase auth/db took too long, forcing load completion");
+        setLoading(false);
+      }
+    }, 5000);
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (authUser) => {
+      clearTimeout(timeoutId);
       setUser(authUser);
       
       if (authUser) {
-        const userRef = ref(rtdb, `users/${authUser.uid}`);
+        const userRef = doc(db, 'users', authUser.uid);
         
         // Fetch profile once, create if missing
         try {
-          const snapshot = await get(userRef);
+          const snapshot = await getDoc(userRef);
           if (!snapshot.exists()) {
-            await set(userRef, {
+            await setDoc(userRef, {
               name: authUser.displayName || 'Unknown User',
               email: authUser.email || '',
               imgSeed: Math.floor(Math.random() * 1000).toString(),
@@ -55,23 +64,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } catch (err) {
           console.error("Error setting up user profile", err);
+          if (isMounted) setLoading(false);
         }
 
-        unsubscribeDB = onValue(userRef, (snap) => {
+        unsubscribeDB = onSnapshot(userRef, (snap) => {
+          if (!isMounted) return;
           if (snap.exists()) {
-            setProfile(snap.val() as UserProfile);
+            setProfile(snap.data() as UserProfile);
           } else {
             setProfile(null);
           }
           setLoading(false);
+        }, (error) => {
+          console.error("Firebase DB Error:", error);
+          if (isMounted) setLoading(false);
         });
       } else {
-        setProfile(null);
-        setLoading(false);
+        if (isMounted) {
+          setProfile(null);
+          setLoading(false);
+        }
       }
     });
 
     return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
       unsubscribeAuth();
       if (unsubscribeDB) {
         unsubscribeDB();

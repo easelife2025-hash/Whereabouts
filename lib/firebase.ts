@@ -12,6 +12,7 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "location-share-6d807.firebasestorage.app",
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "382155482514",
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:382155482514:web:f7118034c7b1602464cd4b",
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || "https://location-share-6d807-default-rtdb.firebaseio.com",
 };
 
 // Initialize Firebase
