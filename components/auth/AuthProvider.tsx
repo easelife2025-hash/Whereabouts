@@ -1,8 +1,8 @@
 'use client';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { ref, onValue, set, get, child } from 'firebase/database';
+import { auth, rtdb } from '@/lib/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
@@ -10,6 +10,7 @@ export interface UserProfile {
   name: string;
   email: string;
   imgSeed: string;
+  createdAt?: number;
 }
 
 interface AuthContextType {
@@ -53,13 +54,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (isMounted) setLoading(false);
       
       if (authUser) {
-        const userRef = doc(db, 'users', authUser.uid);
+        const userRef = ref(rtdb, `users/${authUser.uid}`);
         
         // Fetch profile once, create if missing
         try {
-          const snapshot = await getDoc(userRef);
+          const snapshot = await get(userRef);
           if (!snapshot.exists()) {
-            await setDoc(userRef, {
+            await set(userRef, {
               name: authUser.displayName || 'Unknown User',
               email: authUser.email || '',
               imgSeed: Math.floor(Math.random() * 1000).toString(),
@@ -67,27 +68,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             });
           }
         } catch (err: any) {
-          if (err?.message?.includes('offline')) {
+          if (err?.message?.includes('offline') || err?.message?.includes('Client is offline')) {
             console.warn("Firebase is offline, using fallback auth data.");
           } else {
             console.error("Error setting up user profile:", err);
           }
         }
 
-        unsubscribeDB = onSnapshot(userRef, (snap) => {
+        const listener = onValue(userRef, (snap) => {
           if (!isMounted) return;
           if (snap.exists()) {
-            setProfile(snap.data() as UserProfile);
+            setProfile(snap.val() as UserProfile);
           } else {
             setProfile(null);
           }
         }, (error: any) => {
-          if (error?.message?.includes('offline')) {
+          if (error?.message?.includes('offline') || error?.message?.includes('Client is offline')) {
             console.warn("Firebase snapshot is offline.");
           } else {
             console.error("Firebase DB Error:", error);
           }
         });
+        
+        unsubscribeDB = () => listener();
       } else {
         if (isMounted) {
           setProfile(null);
@@ -116,7 +119,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       pathname.startsWith('/people') || 
       pathname.startsWith('/profile') || 
       pathname.startsWith('/requests') || 
-      pathname.startsWith('/sharing');
+      pathname.startsWith('/sharing') ||
+      pathname.startsWith('/settings');
       
     const isAuthRoute = pathname === '/login' || pathname === '/signup' || pathname === '/';
 

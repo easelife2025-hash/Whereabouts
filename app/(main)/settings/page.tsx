@@ -4,8 +4,8 @@ import { ArrowLeft, User, Mail, Lock, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useState } from 'react';
-import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { ref, update } from 'firebase/database';
+import { rtdb } from '@/lib/firebase';
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -24,8 +24,8 @@ export default function SettingsPage() {
     
     setIsUpdating(true);
     try {
-      const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, { name: localName.trim() });
+      const userRef = ref(rtdb, `users/${user.uid}`);
+      await update(userRef, { name: localName.trim() });
       setLocalName(null); // Once updated, profile.name will reflect the change
     } catch (error) {
       console.error('Failed to update name:', error);

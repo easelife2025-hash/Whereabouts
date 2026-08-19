@@ -18,21 +18,12 @@ type Person = {
 
 export default function FriendsPage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isError, setIsError] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
   const [requestedIds, setRequestedIds] = useState<string[]>([]);
   const router = useRouter();
-
-  // Mock initial data loading (empty list for now)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setPeople([]);
-      setIsLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []);
 
   const filteredPeople = people.filter(p => 
     p.name.toLowerCase().includes(searchQuery.toLowerCase())

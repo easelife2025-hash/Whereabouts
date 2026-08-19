@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth, initializeAuth, browserLocalPersistence } from 'firebase/auth';
+import { getAuth } from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
@@ -18,23 +18,7 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize Firebase services
-let authInstance;
-if (typeof window !== 'undefined') {
-  // Use initializeAuth to explicitly use localStorage and avoid IndexedDB issues on mobile/iframes
-  try {
-    authInstance = initializeAuth(app, {
-      persistence: browserLocalPersistence
-    });
-  } catch (e) {
-    // If initializeAuth throws (e.g., if getAuth was already called by fast refresh), fallback to getAuth
-    authInstance = getAuth(app);
-  }
-} else {
-  authInstance = getAuth(app);
-}
-
-export const auth = authInstance;
+export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const rtdb = getDatabase(app);
 export const functions = getFunctions(app);
