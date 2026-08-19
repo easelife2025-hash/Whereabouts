@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, User, Mail, Lock, Loader2 } from 'lucide-react';
+import { ArrowLeft, User, Mail, Lock, Loader2, Phone } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useState } from 'react';
@@ -11,10 +11,13 @@ export default function SettingsPage() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const [localName, setLocalName] = useState<string | null>(null);
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [localPhone, setLocalPhone] = useState<string | null>(null);
+  const [isUpdatingName, setIsUpdatingName] = useState(false);
+  const [isUpdatingPhone, setIsUpdatingPhone] = useState(false);
 
-  // Use localName if user has typed something, otherwise fallback to profile name
-  const displayValue = localName !== null ? localName : (profile?.name || '');
+  // Use localName/Phone if user has typed something, otherwise fallback to profile data
+  const displayNameValue = localName !== null ? localName : (profile?.name || '');
+  const displayPhoneValue = localPhone !== null ? localPhone : (profile?.phone || '');
 
   const handleNameBlur = async () => {
     if (!user || localName === null || localName === profile?.name || !localName.trim()) {
@@ -22,7 +25,7 @@ export default function SettingsPage() {
       return;
     }
     
-    setIsUpdating(true);
+    setIsUpdatingName(true);
     try {
       const userRef = ref(rtdb, `users/${user.uid}`);
       await update(userRef, { name: localName.trim() });
@@ -31,7 +34,26 @@ export default function SettingsPage() {
       console.error('Failed to update name:', error);
       setLocalName(null); // Revert on failure
     } finally {
-      setIsUpdating(false);
+      setIsUpdatingName(false);
+    }
+  };
+
+  const handlePhoneBlur = async () => {
+    if (!user || localPhone === null || localPhone === profile?.phone) {
+      setLocalPhone(null); // Reset if unchanged
+      return;
+    }
+    
+    setIsUpdatingPhone(true);
+    try {
+      const userRef = ref(rtdb, `users/${user.uid}`);
+      await update(userRef, { phone: localPhone.trim() });
+      setLocalPhone(null); // Once updated, profile.phone will reflect the change
+    } catch (error) {
+      console.error('Failed to update phone:', error);
+      setLocalPhone(null); // Revert on failure
+    } finally {
+      setIsUpdatingPhone(false);
     }
   };
 
@@ -57,13 +79,34 @@ export default function SettingsPage() {
               </div>
               <input 
                 type="text" 
-                value={displayValue}
+                value={displayNameValue}
                 onChange={(e) => setLocalName(e.target.value)}
                 onBlur={handleNameBlur}
-                disabled={isUpdating}
+                disabled={isUpdatingName}
                 className="w-full bg-zinc-50 border border-zinc-200 rounded-[1.25rem] py-4 pl-12 pr-12 text-[16px] font-bold text-zinc-900 focus:ring-2 focus:ring-[#F9C300] focus:border-[#F9C300] outline-none transition-all h-[56px] disabled:opacity-70"
+                placeholder="Full Name"
               />
-              {isUpdating && (
+              {isUpdatingName && (
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400">
+                  <Loader2 size={18} className="animate-spin" />
+                </div>
+              )}
+            </div>
+
+            <div className="relative">
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400">
+                <Phone size={20} strokeWidth={2.5} />
+              </div>
+              <input 
+                type="tel" 
+                value={displayPhoneValue}
+                onChange={(e) => setLocalPhone(e.target.value)}
+                onBlur={handlePhoneBlur}
+                disabled={isUpdatingPhone}
+                className="w-full bg-zinc-50 border border-zinc-200 rounded-[1.25rem] py-4 pl-12 pr-12 text-[16px] font-bold text-zinc-900 focus:ring-2 focus:ring-[#F9C300] focus:border-[#F9C300] outline-none transition-all h-[56px] disabled:opacity-70"
+                placeholder="Phone Number (Optional)"
+              />
+              {isUpdatingPhone && (
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400">
                   <Loader2 size={18} className="animate-spin" />
                 </div>

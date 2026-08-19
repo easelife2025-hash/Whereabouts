@@ -10,6 +10,7 @@ export interface UserProfile {
   name: string;
   email: string;
   imgSeed: string;
+  phone?: string;
   createdAt?: number;
 }
 
