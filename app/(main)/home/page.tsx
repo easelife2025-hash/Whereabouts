@@ -74,7 +74,7 @@ export default function HomePage() {
           
           <div className="bg-zinc-50 rounded-3xl p-6 flex flex-col items-center justify-center gap-3 border border-dashed border-zinc-200">
             <UserPlus size={24} className="text-zinc-300" />
-            <p className="text-[13px] font-medium text-zinc-500 text-center">You haven't shared your location with anyone recently.</p>
+            <p className="text-[13px] font-medium text-zinc-500 text-center">You haven&apos;t shared your location with anyone recently.</p>
           </div>
         </div>
       </div>

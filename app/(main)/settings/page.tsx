@@ -3,32 +3,33 @@
 import { ArrowLeft, User, Mail, Lock, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export default function SettingsPage() {
   const router = useRouter();
   const { user, profile } = useAuth();
-  const [name, setName] = useState('');
+  const [localName, setLocalName] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  useEffect(() => {
-    if (profile?.name) {
-      setName(profile.name);
-    }
-  }, [profile?.name]);
+  // Use localName if user has typed something, otherwise fallback to profile name
+  const displayValue = localName !== null ? localName : (profile?.name || '');
 
   const handleNameBlur = async () => {
-    if (!user || name === profile?.name || !name.trim()) return;
+    if (!user || localName === null || localName === profile?.name || !localName.trim()) {
+      setLocalName(null); // Reset if empty or unchanged
+      return;
+    }
     
     setIsUpdating(true);
     try {
       const userRef = doc(db, 'users', user.uid);
-      await updateDoc(userRef, { name: name.trim() });
+      await updateDoc(userRef, { name: localName.trim() });
+      setLocalName(null); // Once updated, profile.name will reflect the change
     } catch (error) {
       console.error('Failed to update name:', error);
-      setName(profile?.name || '');
+      setLocalName(null); // Revert on failure
     } finally {
       setIsUpdating(false);
     }
@@ -56,8 +57,8 @@ export default function SettingsPage() {
               </div>
               <input 
                 type="text" 
-                value={name}
-                onChange={(e) => setName(e.target.value)}
+                value={displayValue}
+                onChange={(e) => setLocalName(e.target.value)}
                 onBlur={handleNameBlur}
                 disabled={isUpdating}
                 className="w-full bg-zinc-50 border border-zinc-200 rounded-[1.25rem] py-4 pl-12 pr-12 text-[16px] font-bold text-zinc-900 focus:ring-2 focus:ring-[#F9C300] focus:border-[#F9C300] outline-none transition-all h-[56px] disabled:opacity-70"
