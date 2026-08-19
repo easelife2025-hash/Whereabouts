@@ -49,15 +49,8 @@ export default function ProfilePage() {
           </Link>
         </div>
         <h2 className="text-[24px] font-bold text-zinc-900 tracking-tight leading-none">{displayName}</h2>
-        <div className="flex flex-col items-center gap-1 mt-2">
-          <div className="text-[13px] font-medium text-zinc-500">
-            {profile?.email || user?.email}
-          </div>
-          {profile?.phone && (
-            <div className="text-[13px] font-medium text-zinc-400">
-              {profile.phone}
-            </div>
-          )}
+        <div className="flex items-center gap-1.5 text-[13px] font-medium text-zinc-500 mt-2">
+          {profile?.email || user?.email}
         </div>
         
         <div className="flex gap-4 mt-8 w-full">
