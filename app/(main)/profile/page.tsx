@@ -1,14 +1,16 @@
 'use client';
 
-import { Settings, Shield, CircleHelp, LogOut, ChevronRight, MapPin, Bell, Info } from 'lucide-react';
+import { Settings, Shield, CircleHelp, LogOut, ChevronRight, Bell, Info } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 export default function ProfilePage() {
   const router = useRouter();
+  const { user, profile } = useAuth();
 
   const handleSignOut = async () => {
     try {
@@ -27,13 +29,16 @@ export default function ProfilePage() {
     { icon: Info, label: 'About', href: '/about' },
   ];
 
+  const displayName = profile?.name || user?.displayName || 'User';
+  const imgSeed = profile?.imgSeed || 'me';
+
   return (
     <div className="flex flex-col h-full bg-white relative pb-20 overflow-y-auto">
       <div className="px-6 py-8 flex flex-col items-center">
         <div className="relative mb-5">
           <Image 
-            src="https://picsum.photos/seed/me/200" 
-            alt="My Profile" 
+            src={`https://picsum.photos/seed/${imgSeed}/200`} 
+            alt={displayName} 
             width={104} 
             height={104} 
             className="rounded-full object-cover"
@@ -43,19 +48,18 @@ export default function ProfilePage() {
             <Settings size={16} strokeWidth={2.5} />
           </Link>
         </div>
-        <h2 className="text-[24px] font-bold text-zinc-900 tracking-tight leading-none">Emily Carter</h2>
+        <h2 className="text-[24px] font-bold text-zinc-900 tracking-tight leading-none">{displayName}</h2>
         <div className="flex items-center gap-1.5 text-[13px] font-medium text-zinc-500 mt-2">
-          <MapPin size={14} />
-          Brooklyn, NY
+          {profile?.email || user?.email}
         </div>
         
         <div className="flex gap-4 mt-8 w-full">
           <Link href="/people" className="flex-1 rounded-3xl bg-yellow-50 p-4 text-center active:bg-yellow-100 transition-colors">
-            <div className="text-[24px] font-bold text-zinc-900 leading-none mb-1.5">14</div>
+            <div className="text-[24px] font-bold text-zinc-900 leading-none mb-1.5">-</div>
             <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest">People</div>
           </Link>
           <Link href="/sharing" className="flex-1 rounded-3xl bg-yellow-50 p-4 text-center active:bg-yellow-100 transition-colors">
-            <div className="text-[24px] font-bold text-zinc-900 leading-none mb-1.5">4</div>
+            <div className="text-[24px] font-bold text-zinc-900 leading-none mb-1.5">-</div>
             <div className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest">Sharing</div>
           </Link>
         </div>

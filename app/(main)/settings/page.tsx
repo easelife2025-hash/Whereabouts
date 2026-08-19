@@ -1,10 +1,38 @@
 'use client';
 
-import { ArrowLeft, User, Mail, Lock } from 'lucide-react';
+import { ArrowLeft, User, Mail, Lock, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { useState, useEffect } from 'react';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { user, profile } = useAuth();
+  const [name, setName] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  useEffect(() => {
+    if (profile?.name) {
+      setName(profile.name);
+    }
+  }, [profile?.name]);
+
+  const handleNameBlur = async () => {
+    if (!user || name === profile?.name || !name.trim()) return;
+    
+    setIsUpdating(true);
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { name: name.trim() });
+    } catch (error) {
+      console.error('Failed to update name:', error);
+      setName(profile?.name || '');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-white relative pb-20">
@@ -28,9 +56,17 @@ export default function SettingsPage() {
               </div>
               <input 
                 type="text" 
-                defaultValue="Emily Carter"
-                className="w-full bg-zinc-50 border border-zinc-200 rounded-[1.25rem] py-4 pl-12 pr-4 text-[16px] font-bold text-zinc-900 focus:ring-2 focus:ring-[#F9C300] focus:border-[#F9C300] outline-none transition-all h-[56px]"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onBlur={handleNameBlur}
+                disabled={isUpdating}
+                className="w-full bg-zinc-50 border border-zinc-200 rounded-[1.25rem] py-4 pl-12 pr-12 text-[16px] font-bold text-zinc-900 focus:ring-2 focus:ring-[#F9C300] focus:border-[#F9C300] outline-none transition-all h-[56px] disabled:opacity-70"
               />
+              {isUpdating && (
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400">
+                  <Loader2 size={18} className="animate-spin" />
+                </div>
+              )}
             </div>
 
             <div className="relative">
@@ -39,7 +75,7 @@ export default function SettingsPage() {
               </div>
               <input 
                 type="email" 
-                defaultValue="emily@example.com"
+                value={profile?.email || user?.email || ''}
                 readOnly
                 className="w-full bg-zinc-100 border border-zinc-200/50 rounded-[1.25rem] py-4 pl-12 pr-4 text-[16px] font-medium text-zinc-500 outline-none h-[56px] opacity-80"
               />
@@ -55,7 +91,6 @@ export default function SettingsPage() {
             </div>
             <div className="text-left">
               <div className="text-[16px] font-bold text-zinc-900">Change Password</div>
-              <div className="text-[13px] font-medium text-zinc-500 mt-0.5">Updated 3 months ago</div>
             </div>
           </button>
         </div>

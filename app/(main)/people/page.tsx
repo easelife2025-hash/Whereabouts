@@ -16,14 +16,6 @@ type Person = {
   phone: string;
 };
 
-const MOCK_PEOPLE: Person[] = [
-  { id: '1', name: 'Alex Johnson', status: 'sharing', location: 'Central Park, NY', updatedAt: '2m ago', imgSeed: 'friend1', phone: '+1 (555) 123-4567' },
-  { id: '2', name: 'Sarah Jenkins', status: 'sharing', location: '123 Main St, Brooklyn', updatedAt: '20m ago', imgSeed: 'friend2', phone: '+1 (555) 987-6543' },
-  { id: '3', name: 'Michael Chen', status: 'sharing', location: 'San Francisco Airport', updatedAt: '1h ago', imgSeed: 'friend3', phone: '+1 (555) 456-7890' },
-  { id: '4', name: 'David Kim', status: 'not_sharing', imgSeed: 'req1', phone: '+1 (555) 222-3333' },
-  { id: '5', name: 'Emma Watson', status: 'not_sharing', imgSeed: 'friend4', phone: '+1 (555) 444-5555' },
-];
-
 export default function FriendsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -33,14 +25,12 @@ export default function FriendsPage() {
   const [requestedIds, setRequestedIds] = useState<string[]>([]);
   const router = useRouter();
 
-  // Mock initial data loading
+  // Mock initial data loading (empty list for now)
   useEffect(() => {
     const timer = setTimeout(() => {
-      // Uncomment to test error state
-      // setIsError(true); 
-      setPeople(MOCK_PEOPLE);
+      setPeople([]);
       setIsLoading(false);
-    }, 1200);
+    }, 800);
     return () => clearTimeout(timer);
   }, []);
 

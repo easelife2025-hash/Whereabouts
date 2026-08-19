@@ -13,13 +13,8 @@ type Request = {
   time: string;
 };
 
-const MOCK_REQUESTS: Request[] = [
-  { id: '1', name: 'David Kim', imgSeed: 'req1', time: '10m ago' },
-  { id: '2', name: 'Emma Watson', imgSeed: 'friend4', time: '1h ago' },
-];
-
 export default function RequestsPage() {
-  const [requests, setRequests] = useState<Request[]>(MOCK_REQUESTS);
+  const [requests, setRequests] = useState<Request[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [flowStep, setFlowStep] = useState<'initial' | 'duration'>('initial');
   const router = useRouter();

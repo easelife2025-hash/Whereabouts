@@ -14,16 +14,9 @@ type SharedUser = {
   remainingTime: string | null; // null if 'Until stopped'
 };
 
-const MOCK_SHARED_USERS: SharedUser[] = [
-  { id: '1', name: 'Alex Johnson', imgSeed: 'friend1', duration: 'Until stopped', remainingTime: null },
-  { id: '2', name: 'Sarah Jenkins', imgSeed: 'friend2', duration: '4 hours', remainingTime: '3h 15m left' },
-  { id: '3', name: 'Michael Chen', imgSeed: 'friend3', duration: '1 hour', remainingTime: '22m left' },
-  { id: '4', name: 'Emma Watson', imgSeed: 'friend4', duration: 'Until stopped', remainingTime: null },
-];
-
 export default function SharingPermissionsPage() {
   const router = useRouter();
-  const [sharedUsers, setSharedUsers] = useState<SharedUser[]>(MOCK_SHARED_USERS);
+  const [sharedUsers, setSharedUsers] = useState<SharedUser[]>([]);
 
   const handleRevoke = (id: string) => {
     setSharedUsers((prev) => prev.filter((user) => user.id !== id));

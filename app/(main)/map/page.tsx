@@ -1,12 +1,11 @@
 'use client';
 
-import { Crosshair, X, ShieldAlert } from 'lucide-react';
+import { Crosshair, X, Navigation } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
 export default function TrackingPage() {
   const router = useRouter();
-  const personName = "David Kim";
 
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 relative h-full w-full">
@@ -41,25 +40,14 @@ export default function TrackingPage() {
           </button>
         </div>
 
-        {/* Center Person Marker */}
+        {/* Center Person Marker (Empty State) */}
         <div className="flex-1 flex items-center justify-center relative pointer-events-none pb-20">
           <div className="relative pointer-events-auto group">
-            {/* Pulsing rings */}
-            <div className="absolute -inset-8 bg-[#F9C300]/20 rounded-full animate-ping [animation-duration:3s]"></div>
-            <div className="absolute -inset-4 bg-[#F9C300]/30 rounded-full animate-pulse [animation-duration:2s]"></div>
-            
-            {/* Avatar marker */}
-            <div className="w-16 h-16 bg-white rounded-full p-1 shadow-xl flex items-center justify-center relative z-10 border-2 border-[#F9C300]">
-              <Image 
-                src="https://picsum.photos/seed/req1/150" 
-                alt={personName}
-                width={56} 
-                height={56} 
-                className="rounded-full object-cover w-full h-full"
-                referrerPolicy="no-referrer"
-              />
+            <div className="w-16 h-16 bg-white rounded-full p-1 shadow-xl flex items-center justify-center relative z-10 border-2 border-zinc-200">
+              <div className="bg-zinc-100 w-full h-full rounded-full flex items-center justify-center">
+                <Navigation size={24} className="text-zinc-400" />
+              </div>
             </div>
-            
             {/* Shadow under marker */}
             <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-8 h-2 bg-black/10 blur-[3px] rounded-[100%]"></div>
           </div>
@@ -68,38 +56,20 @@ export default function TrackingPage() {
         {/* Bottom Info Card */}
         <div className="mt-auto px-4 pb-6 pointer-events-none relative z-20">
           <div className="bg-white rounded-3xl p-5 shadow-lg border border-zinc-100 pointer-events-auto">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-2">
               <div className="flex flex-col">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#F9C300]"></span>
-                  </span>
-                  <span className="text-[11px] font-bold text-[#E5B200] uppercase tracking-widest">Live</span>
+                  <div className="w-2 h-2 rounded-full bg-zinc-300"></div>
+                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">Offline</span>
                 </div>
-                <h2 className="text-[20px] font-bold text-zinc-900 leading-tight">{personName}</h2>
-                <p className="text-[13px] font-medium text-zinc-500 mt-0.5">Updated just now</p>
+                <h2 className="text-[20px] font-bold text-zinc-900 leading-tight">No active tracking</h2>
+                <p className="text-[13px] font-medium text-zinc-500 mt-0.5">Location not available</p>
               </div>
 
-              <div className="w-12 h-12 bg-zinc-50 rounded-full overflow-hidden border border-zinc-100 shrink-0">
-                 <Image 
-                  src="https://picsum.photos/seed/req1/100" 
-                  alt={personName}
-                  width={48} 
-                  height={48} 
-                  className="object-cover w-full h-full"
-                  referrerPolicy="no-referrer"
-                />
+              <div className="w-12 h-12 bg-zinc-50 rounded-full flex items-center justify-center border border-zinc-100 shrink-0">
+                 <Navigation size={20} className="text-zinc-300" />
               </div>
             </div>
-
-            <button 
-              onClick={() => router.push('/home')}
-              className="w-full flex items-center justify-center gap-2 bg-[#F9C300] text-zinc-900 font-bold text-[15px] py-3.5 rounded-2xl active:bg-[#E5B200] transition-colors"
-            >
-              <ShieldAlert size={18} strokeWidth={2.5} />
-              Stop Sharing
-            </button>
           </div>
         </div>
       </div>
