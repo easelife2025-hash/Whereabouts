@@ -35,6 +35,7 @@ export default function LoginPage() {
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      router.push('/home');
     } catch (err: any) {
       let errorMessage = err.message || 'Failed to sign in. Please check your credentials.';
       if (err.code === 'auth/unauthorized-domain') {
@@ -76,6 +77,7 @@ export default function LoginPage() {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
+      router.push('/home');
     } catch (err: any) {
       if (err.code === 'auth/popup-closed-by-user') {
         setIsLoading(false);

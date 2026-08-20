@@ -23,6 +23,7 @@ export default function SignUpPage() {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
+      router.push('/home');
     } catch (err: any) {
       if (err.code === 'auth/popup-closed-by-user') {
         setIsLoading(false);
@@ -78,6 +79,7 @@ export default function SignUpPage() {
           imgSeed: Math.floor(Math.random() * 1000).toString(),
           createdAt: Date.now()
         });
+        router.push('/home');
       }
     } catch (err: any) {
       let errorMessage = err.message || 'Failed to create account.';

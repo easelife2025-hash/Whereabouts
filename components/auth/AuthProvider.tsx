@@ -49,14 +49,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(timeoutId);
       setUser(authUser);
       
-      // Unblock UI immediately once we know the auth state. 
-      // The profile will load asynchronously in the background.
-      if (isMounted) setLoading(false);
-      
       if (authUser) {
         const userRef = ref(rtdb, `users/${authUser.uid}`);
         
-        // Fetch profile once, create if missing
         try {
           const snapshot = await get(userRef);
           if (!snapshot.exists()) {
@@ -66,27 +61,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               imgSeed: Math.floor(Math.random() * 1000).toString(),
               createdAt: Date.now()
             });
+            setProfile({
+              name: authUser.displayName || 'Unknown User',
+              email: authUser.email || '',
+              imgSeed: Math.floor(Math.random() * 1000).toString(),
+              createdAt: Date.now()
+            });
+          } else {
+            setProfile(snapshot.val() as UserProfile);
           }
         } catch (err: any) {
-          if (err?.message?.includes('offline') || err?.message?.includes('Client is offline')) {
-            console.warn("Firebase is offline, using fallback auth data.");
-          } else {
-            console.error("Error setting up user profile:", err);
-          }
+          console.error("Error setting up user profile:", err);
         }
 
         const listener = onValue(userRef, (snap) => {
           if (!isMounted) return;
           if (snap.exists()) {
             setProfile(snap.val() as UserProfile);
-          } else {
-            setProfile(null);
-          }
-        }, (error: any) => {
-          if (error?.message?.includes('offline') || error?.message?.includes('Client is offline')) {
-            console.warn("Firebase snapshot is offline.");
-          } else {
-            console.error("Firebase DB Error:", error);
           }
         });
         
@@ -96,6 +87,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setProfile(null);
         }
       }
+      
+      if (isMounted) setLoading(false);
     });
 
     return () => {
