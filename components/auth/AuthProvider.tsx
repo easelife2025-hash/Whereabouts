@@ -41,6 +41,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const unsubscribeAuth = onAuthStateChanged(auth, async (authUser) => {
       setUser(authUser);
       
+      if (isMounted && loading) {
+        setLoading(false);
+      }
+      
       if (authUser) {
         const userDocRef = doc(db, 'users', authUser.uid);
         
@@ -89,8 +93,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setProfile(null);
         }
       }
-      
-      if (isMounted) setLoading(false);
     });
 
     return () => {
