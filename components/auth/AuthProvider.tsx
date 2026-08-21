@@ -1,8 +1,8 @@
 'use client';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { ref, onValue, set, get, child } from 'firebase/database';
-import { auth, rtdb } from '@/lib/firebase';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
@@ -38,29 +38,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let unsubscribeDB: (() => void) | undefined;
     let isMounted = true;
 
-    const timeoutId = setTimeout(() => {
-      if (isMounted && loading) {
-        console.warn("Firebase auth/db took too long, forcing load completion");
-        setLoading(false);
-      }
-    }, 5000);
-
     const unsubscribeAuth = onAuthStateChanged(auth, async (authUser) => {
-      clearTimeout(timeoutId);
       setUser(authUser);
       
       if (authUser) {
-        const userRef = ref(rtdb, `users/${authUser.uid}`);
+        const userDocRef = doc(db, 'users', authUser.uid);
         
         try {
-          const snapshot = await get(userRef);
+          const snapshot = await getDoc(userDocRef);
+          
           if (!snapshot.exists()) {
-            await set(userRef, {
+            // Attempt to create if it doesn't exist, but don't block UI if it fails
+            setDoc(userDocRef, {
               name: authUser.displayName || 'Unknown User',
               email: authUser.email || '',
               imgSeed: Math.floor(Math.random() * 1000).toString(),
               createdAt: Date.now()
-            });
+            }).catch(console.error);
+
             setProfile({
               name: authUser.displayName || 'Unknown User',
               email: authUser.email || '',
@@ -68,16 +63,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               createdAt: Date.now()
             });
           } else {
-            setProfile(snapshot.val() as UserProfile);
+            setProfile(snapshot.data() as UserProfile);
           }
         } catch (err: any) {
           console.error("Error setting up user profile:", err);
+          // Fallback profile if DB fetch fails
+          setProfile({
+            name: authUser.displayName || 'Unknown User',
+            email: authUser.email || '',
+            imgSeed: Math.floor(Math.random() * 1000).toString(),
+            createdAt: Date.now()
+          });
         }
 
-        const listener = onValue(userRef, (snap) => {
+        const listener = onSnapshot(userDocRef, (snap) => {
           if (!isMounted) return;
           if (snap.exists()) {
-            setProfile(snap.val() as UserProfile);
+            setProfile(snap.data() as UserProfile);
           }
         });
         
@@ -93,7 +95,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       isMounted = false;
-      clearTimeout(timeoutId);
       unsubscribeAuth();
       if (unsubscribeDB) {
         unsubscribeDB();
@@ -106,16 +107,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (loading) return;
 
     // Define protected routes (anything under /(main) or similar logic)
+    const currentPath = pathname || '';
     const isMainRoute = 
-      pathname.startsWith('/home') || 
-      pathname.startsWith('/map') || 
-      pathname.startsWith('/people') || 
-      pathname.startsWith('/profile') || 
-      pathname.startsWith('/requests') || 
-      pathname.startsWith('/sharing') ||
-      pathname.startsWith('/settings');
+      currentPath.startsWith('/home') || 
+      currentPath.startsWith('/map') || 
+      currentPath.startsWith('/people') || 
+      currentPath.startsWith('/profile') || 
+      currentPath.startsWith('/requests') || 
+      currentPath.startsWith('/sharing') ||
+      currentPath.startsWith('/settings');
       
-    const isAuthRoute = pathname === '/login' || pathname === '/signup' || pathname === '/';
+    const isAuthRoute = currentPath === '/login' || currentPath === '/signup' || currentPath === '/';
 
     if (!user && isMainRoute) {
       router.push('/login');

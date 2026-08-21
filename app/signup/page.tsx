@@ -70,10 +70,10 @@ export default function SignUpPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       if (userCredential.user) {
         await updateProfile(userCredential.user, { displayName: name.trim() });
-        const { ref, set } = await import('firebase/database');
-        const { rtdb } = await import('@/lib/firebase');
-        const userRef = ref(rtdb, 'users/' + userCredential.user.uid);
-        await set(userRef, {
+        const { doc, setDoc } = await import('firebase/firestore');
+        const { db } = await import('@/lib/firebase');
+        const userRef = doc(db, 'users', userCredential.user.uid);
+        await setDoc(userRef, {
           name: name.trim(),
           email: userCredential.user.email,
           imgSeed: Math.floor(Math.random() * 1000).toString(),
