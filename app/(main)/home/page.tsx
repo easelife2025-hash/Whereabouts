@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { MapPin, UserPlus, ShieldCheck, Activity, ChevronRight, Inbox } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -8,18 +7,16 @@ import { useAuth } from '@/components/auth/AuthProvider';
 
 export default function HomePage() {
   const { user, profile } = useAuth();
-  const [greeting, setGreeting] = useState('Good morning');
-
-  useEffect(() => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) {
-      setGreeting('Good morning');
-    } else if (hour >= 12 && hour < 16) {
-      setGreeting('Good afternoon');
-    } else {
-      setGreeting('Good evening');
-    }
-  }, []);
+  
+  const hour = new Date().getHours();
+  let greeting = 'Good morning';
+  if (hour >= 5 && hour < 12) {
+    greeting = 'Good morning';
+  } else if (hour >= 12 && hour < 16) {
+    greeting = 'Good afternoon';
+  } else {
+    greeting = 'Good evening';
+  }
 
   // Get first name from profile or user
   const displayName = profile?.name || user?.displayName || 'User';
@@ -30,7 +27,7 @@ export default function HomePage() {
       <div className="px-6 py-6 pb-2">
         <div className="flex justify-between items-start">
           <div>
-            <h2 className="text-[28px] font-bold text-zinc-900 tracking-tight leading-tight">{greeting},</h2>
+            <h2 suppressHydrationWarning className="text-[28px] font-bold text-zinc-900 tracking-tight leading-tight">{greeting},</h2>
             <h2 className="text-[28px] font-bold text-zinc-400 tracking-tight leading-tight">{firstName}.</h2>
           </div>
           <button className="w-11 h-11 bg-yellow-50 rounded-full flex items-center justify-center text-[#F9C300] active:scale-95 transition-transform">
