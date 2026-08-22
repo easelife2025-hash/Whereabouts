@@ -10,6 +10,7 @@ export interface UserProfile {
   name: string;
   email: string;
   imgSeed: string;
+  bio?: string;
   createdAt?: number;
 }
 
@@ -70,7 +71,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setProfile(snapshot.data() as UserProfile);
           }
         } catch (err: any) {
-          console.error("Error setting up user profile:", err);
+          if (err?.code !== 'failed-precondition' && err?.code !== 'unavailable' && !err?.message?.includes('offline')) {
+            console.error("Error setting up user profile:", err);
+          }
           // Fallback profile if DB fetch fails
           setProfile({
             name: authUser.displayName || 'Unknown User',

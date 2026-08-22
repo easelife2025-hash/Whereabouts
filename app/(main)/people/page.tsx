@@ -1,43 +1,149 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Search, MapPin, MoreHorizontal, UserPlus, AlertCircle, ShieldAlert, X, ChevronRight, Navigation, Check } from 'lucide-react';
+import { Search, MapPin, MoreHorizontal, UserPlus, AlertCircle, ShieldAlert, X, ChevronRight, Navigation, Check, Clock } from 'lucide-react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'motion/react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { db, rtdb } from '@/lib/firebase';
+import { collection, getDocs, query, where } from 'firebase/firestore';
+import { ref, onValue, set, update, remove, get, serverTimestamp } from 'firebase/database';
 
-type Person = {
-  id: string;
+type UserProfile = {
+  uid: string;
   name: string;
-  status: 'sharing' | 'not_sharing';
-  location?: string;
-  updatedAt?: string;
+  email: string;
   imgSeed: string;
-  phone: string;
+};
+
+type LocationRequest = {
+  status: 'pending' | 'accepted' | 'denied' | 'revoked' | 'expired';
+  timestamp: number;
 };
 
 export default function FriendsPage() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [isError, setIsError] = useState(false);
-  const [people, setPeople] = useState<Person[]>([]);
-  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null);
-  const [requestedIds, setRequestedIds] = useState<string[]>([]);
   const router = useRouter();
+  const { user } = useAuth();
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<Record<string, LocationRequest>>({});
+  const [outgoingRequests, setOutgoingRequests] = useState<Record<string, LocationRequest>>({});
+  
+  const [selectedPerson, setSelectedPerson] = useState<UserProfile | null>(null);
 
-  const filteredPeople = people.filter(p => 
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
+  // Load all users from Firestore
+  useEffect(() => {
+    if (!user) return;
+    const fetchUsers = async () => {
+      try {
+        const usersRef = collection(db, 'users');
+        const snapshot = await getDocs(usersRef);
+        const usersList: UserProfile[] = [];
+        snapshot.forEach(doc => {
+          if (doc.id !== user.uid) {
+            usersList.push({ uid: doc.id, ...doc.data() } as UserProfile);
+          }
+        });
+        setAllUsers(usersList);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+        setIsError(true);
+      }
+    };
+    fetchUsers();
+  }, [user]);
+
+  // Load RTDB request states
+  useEffect(() => {
+    if (!user) return;
+    
+    // Listen to incoming
+    const incomingRef = ref(rtdb, `location_requests/${user.uid}/incoming`);
+    const unsubIncoming = onValue(incomingRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setIncomingRequests(snapshot.val());
+      } else {
+        setIncomingRequests({});
+      }
+      setIsLoading(false);
+    }, (error) => {
+      console.error(error);
+      setIsError(true);
+      setIsLoading(false);
+    });
+
+    // Listen to outgoing
+    const outgoingRef = ref(rtdb, `location_requests/${user.uid}/outgoing`);
+    const unsubOutgoing = onValue(outgoingRef, (snapshot) => {
+      if (snapshot.exists()) {
+        setOutgoingRequests(snapshot.val());
+      } else {
+        setOutgoingRequests({});
+      }
+    });
+
+    return () => {
+      unsubIncoming();
+      unsubOutgoing();
+    };
+  }, [user]);
+
+  const handleSendRequest = async (recipientId: string) => {
+    if (!user) return;
+    const updates: any = {};
+    
+    // Set outgoing for current user
+    updates[`location_requests/${user.uid}/outgoing/${recipientId}`] = { status: 'pending', timestamp: serverTimestamp() };
+    // Set incoming for recipient
+    updates[`location_requests/${recipientId}/incoming/${user.uid}`] = { status: 'pending', timestamp: serverTimestamp() };
+    
+    await update(ref(rtdb), updates);
+  };
+
+  const handleRespondToRequest = async (senderId: string, response: 'accepted' | 'denied') => {
+    if (!user) return;
+    const updates: any = {};
+    
+    updates[`location_requests/${user.uid}/incoming/${senderId}`] = { status: response, timestamp: serverTimestamp() };
+    updates[`location_requests/${senderId}/outgoing/${user.uid}`] = { status: response, timestamp: serverTimestamp() };
+    
+    await update(ref(rtdb), updates);
+  };
+
+  const handleRevokeShare = async (recipientId: string) => {
+    if (!user) return;
+    const updates: any = {};
+    
+    updates[`location_requests/${user.uid}/outgoing/${recipientId}`] = { status: 'revoked', timestamp: serverTimestamp() };
+    updates[`location_requests/${recipientId}/incoming/${user.uid}`] = { status: 'revoked', timestamp: serverTimestamp() };
+    
+    await update(ref(rtdb), updates);
+  };
+
+  const filteredUsers = allUsers.filter(u => 
+    u.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    u.email?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const sharingPeople = filteredPeople.filter(p => p.status === 'sharing');
-  const notSharingPeople = filteredPeople.filter(p => p.status === 'not_sharing');
-
-  const handleBlock = () => {
-    if (selectedPerson) {
-      setPeople(prev => prev.filter(p => p.id !== selectedPerson.id));
-      setSelectedPerson(null);
-    }
-  };
+  // Group users based on request status
+  const sharingWithMe = allUsers.filter(u => incomingRequests[u.uid]?.status === 'accepted');
+  const iAmSharingWith = allUsers.filter(u => outgoingRequests[u.uid]?.status === 'accepted');
+  const pendingIncoming = allUsers.filter(u => incomingRequests[u.uid]?.status === 'pending');
+  const pendingOutgoing = allUsers.filter(u => outgoingRequests[u.uid]?.status === 'pending');
+  
+  const connectedIds = new Set([
+    ...sharingWithMe.map(u => u.uid),
+    ...iAmSharingWith.map(u => u.uid),
+    ...pendingIncoming.map(u => u.uid),
+    ...pendingOutgoing.map(u => u.uid)
+  ]);
+  
+  const otherUsers = filteredUsers.filter(u => !connectedIds.has(u.uid));
 
   return (
     <div className="flex flex-col h-full bg-white relative pb-20">
@@ -81,46 +187,59 @@ export default function FriendsPage() {
           </div>
         )}
 
-        {/* Error State */}
-        {!isLoading && isError && (
-          <div className="mt-20 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center mb-4">
-              <AlertCircle size={32} className="text-[#F9C300]" strokeWidth={2} />
-            </div>
-            <h3 className="text-[19px] font-bold text-zinc-900 mb-2">Something went wrong</h3>
-            <p className="text-[15px] font-medium text-zinc-500 max-w-[240px] mb-6">We couldn&apos;t load your connections. Please try again.</p>
-            <button 
-              onClick={() => window.location.reload()}
-              className="bg-[#F9C300] text-zinc-900 font-bold px-6 py-3 rounded-full text-[15px] active:bg-[#E5B200] transition-colors"
-            >
-              Retry
-            </button>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!isLoading && !isError && filteredPeople.length === 0 && (
-          <div className="mt-24 flex flex-col items-center justify-center text-center">
-            <div className="w-20 h-20 bg-zinc-50 rounded-full flex items-center justify-center mb-6">
-              <Search size={32} className="text-zinc-300" strokeWidth={2} />
-            </div>
-            <h3 className="text-[19px] font-bold text-zinc-900 mb-2">No people found</h3>
-            <p className="text-[15px] font-medium text-zinc-500 max-w-[240px]">We couldn&apos;t find anyone matching &quot;{searchQuery}&quot;.</p>
-          </div>
-        )}
-
         {/* Lists */}
-        {!isLoading && !isError && filteredPeople.length > 0 && (
-          <div className="pb-8">
+        {!isLoading && !isError && (
+          <div className="pb-8 space-y-8 mt-6">
             
-            {/* Sharing with you */}
-            {sharingPeople.length > 0 && (
-              <div className="mt-6">
+            {/* Pending Requests */}
+            {pendingIncoming.length > 0 && (
+              <div>
+                <h2 className="text-[14px] font-bold text-emerald-600 mb-3 flex items-center gap-2">
+                  <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                  New Location Requests
+                </h2>
+                <div className="space-y-3">
+                  {pendingIncoming.map((person) => (
+                    <div key={person.uid} className="w-full flex items-center gap-4 p-4 bg-emerald-50 rounded-[1.5rem]">
+                      <Image 
+                        src={`https://picsum.photos/seed/${person.imgSeed}/100`} 
+                        alt={person.name} 
+                        width={48} height={48} 
+                        className="rounded-full object-cover shrink-0 border-2 border-white"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="flex-1 overflow-hidden">
+                        <h3 className="font-bold text-zinc-900 text-[16px] truncate leading-tight mb-0.5">{person.name}</h3>
+                        <p className="text-[13px] font-medium text-zinc-500 truncate">Wants to see your location</p>
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button 
+                          onClick={() => handleRespondToRequest(person.uid, 'denied')}
+                          className="w-10 h-10 rounded-full bg-white text-zinc-400 flex items-center justify-center active:bg-zinc-100"
+                        >
+                          <X size={18} strokeWidth={3} />
+                        </button>
+                        <button 
+                          onClick={() => handleRespondToRequest(person.uid, 'accepted')}
+                          className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center active:bg-emerald-600 shadow-sm"
+                        >
+                          <Check size={18} strokeWidth={3} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Sharing With You */}
+            {sharingWithMe.length > 0 && (
+              <div>
                 <h2 className="text-[14px] font-bold text-zinc-900 mb-2">Sharing With You</h2>
                 <div className="space-y-0">
-                  {sharingPeople.map((person) => (
+                  {sharingWithMe.map((person) => (
                     <button 
-                      key={person.id} 
+                      key={person.uid} 
                       onClick={() => setSelectedPerson(person)}
                       className="w-full flex items-center gap-4 py-3 active:opacity-60 transition-opacity group"
                     >
@@ -128,23 +247,20 @@ export default function FriendsPage() {
                         <Image 
                           src={`https://picsum.photos/seed/${person.imgSeed}/100`} 
                           alt={person.name} 
-                          width={48} 
-                          height={48} 
+                          width={48} height={48} 
                           className="rounded-full object-cover"
                           referrerPolicy="no-referrer"
                         />
                         <div className="absolute bottom-0 right-0 w-3 h-3 bg-[#F9C300] rounded-full border-2 border-white"></div>
                       </div>
-                      
                       <div className="flex-1 overflow-hidden text-left">
                         <h3 className="font-bold text-zinc-900 text-[16px] truncate leading-tight mb-0.5">{person.name}</h3>
                         <div className="flex items-center text-[13px] font-medium text-zinc-500 gap-1 truncate">
-                          <MapPin size={12} className="text-zinc-400 shrink-0" strokeWidth={2.5} />
-                          <span className="truncate">{person.location}</span>
+                          <MapPin size={12} className="text-[#F9C300] shrink-0" strokeWidth={2.5} />
+                          <span className="truncate">Location available (Hidden for now)</span>
                         </div>
                       </div>
-                      
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-300 group-hover:text-zinc-900 transition-colors shrink-0">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-300 group-hover:text-zinc-900 shrink-0">
                         <MoreHorizontal size={20} strokeWidth={2.5} />
                       </div>
                     </button>
@@ -153,41 +269,65 @@ export default function FriendsPage() {
               </div>
             )}
 
-            {/* Not sharing */}
-            {notSharingPeople.length > 0 && (
-              <div className="mt-8">
-                <h2 className="text-[14px] font-bold text-zinc-900 mb-2">Other Connections</h2>
+            {/* Outgoing Pending */}
+            {pendingOutgoing.length > 0 && (
+              <div>
+                <h2 className="text-[14px] font-bold text-zinc-900 mb-2">Requested by You</h2>
                 <div className="space-y-0">
-                  {notSharingPeople.map((person) => (
-                    <button 
-                      key={person.id}
-                      onClick={() => setSelectedPerson(person)}
-                      className="w-full flex items-center gap-4 py-3 text-left active:opacity-60 transition-opacity"
-                    >
+                  {pendingOutgoing.map((person) => (
+                    <div key={person.uid} className="w-full flex items-center gap-4 py-3 opacity-70">
                       <Image 
                         src={`https://picsum.photos/seed/${person.imgSeed}/100`} 
                         alt={person.name} 
-                        width={48} 
-                        height={48} 
-                        className="rounded-full object-cover opacity-60"
+                        width={48} height={48} 
+                        className="rounded-full object-cover shrink-0 grayscale"
                         referrerPolicy="no-referrer"
                       />
-                      
-                      <div className="flex-1 overflow-hidden">
+                      <div className="flex-1 overflow-hidden text-left">
                         <h3 className="font-bold text-zinc-900 text-[16px] truncate leading-tight mb-0.5">{person.name}</h3>
-                        <p className="text-[13px] font-medium text-zinc-400 truncate">Not sharing location</p>
-                      </div>
-                      
-                      <div className="shrink-0">
-                        <div className="text-[13px] font-bold text-zinc-900 bg-zinc-100 px-4 py-2 rounded-full">
-                          Ask
+                        <div className="flex items-center text-[13px] font-medium text-zinc-500 gap-1 truncate">
+                          <Clock size={12} className="text-zinc-400 shrink-0" strokeWidth={2.5} />
+                          <span className="truncate">Awaiting approval</span>
                         </div>
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* Not sharing (Other users) */}
+            {otherUsers.length > 0 && (
+              <div>
+                <h2 className="text-[14px] font-bold text-zinc-900 mb-2">Other Users</h2>
+                <div className="space-y-0">
+                  {otherUsers.map((person) => (
+                    <div key={person.uid} className="w-full flex items-center gap-4 py-3 text-left">
+                      <Image 
+                        src={`https://picsum.photos/seed/${person.imgSeed}/100`} 
+                        alt={person.name} 
+                        width={48} height={48} 
+                        className="rounded-full object-cover opacity-60 shrink-0"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="flex-1 overflow-hidden">
+                        <h3 className="font-bold text-zinc-900 text-[16px] truncate leading-tight mb-0.5">{person.name}</h3>
+                        <p className="text-[13px] font-medium text-zinc-400 truncate">Not sharing location</p>
+                      </div>
+                      <div className="shrink-0">
+                        <button 
+                          onClick={() => handleSendRequest(person.uid)}
+                          className="text-[13px] font-bold text-zinc-900 bg-zinc-100 px-4 py-2 rounded-full active:bg-zinc-200"
+                        >
+                          Ask
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
           </div>
         )}
       </div>
@@ -220,69 +360,26 @@ export default function FriendsPage() {
                   <Image 
                     src={`https://picsum.photos/seed/${selectedPerson.imgSeed}/400`} 
                     alt={selectedPerson.name} 
-                    width={100} 
-                    height={100} 
+                    width={100} height={100} 
                     className="rounded-full object-cover mb-4 border-4 border-white shadow-sm"
                     referrerPolicy="no-referrer"
                   />
                   <h2 className="text-[24px] font-bold text-zinc-900 leading-tight text-center">{selectedPerson.name}</h2>
-                  <p className="text-[15px] font-medium text-zinc-500 mt-1">{selectedPerson.phone}</p>
+                  <p className="text-[15px] font-medium text-zinc-500 mt-1">{selectedPerson.email}</p>
                 </div>
-
-                {selectedPerson.status === 'sharing' ? (
-                  <button 
-                    onClick={() => router.push('/map')}
-                    className="w-full text-left bg-zinc-50 rounded-[1.5rem] p-5 mb-6 border border-zinc-100 flex items-start gap-4 active:bg-zinc-100 transition-colors"
-                  >
-                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shrink-0 shadow-sm">
-                      <MapPin size={24} className="text-[#F9C300]" strokeWidth={2.5} />
-                    </div>
-                    <div>
-                      <h4 className="text-[13px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Current Location</h4>
-                      <p className="text-[16px] font-bold text-zinc-900 leading-snug mb-1">{selectedPerson.location}</p>
-                      <p className="text-[13px] font-medium text-zinc-500">Updated {selectedPerson.updatedAt}</p>
-                    </div>
-                  </button>
-                ) : (
-                  <div className="bg-zinc-50 rounded-[1.5rem] p-5 mb-6 border border-zinc-100 flex flex-col items-center text-center">
-                    <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-3">
-                      <Navigation size={24} className="text-zinc-300" strokeWidth={2.5} />
-                    </div>
-                    <p className="text-[15px] font-medium text-zinc-900 mb-3">They aren&apos;t sharing their location with you right now.</p>
-                    
-                    {requestedIds.includes(selectedPerson.id) ? (
-                      <div className="w-full bg-emerald-50 text-emerald-600 font-bold text-[15px] py-3.5 rounded-full flex items-center justify-center gap-2">
-                        <Check size={18} strokeWidth={2.5} />
-                        Requested
-                      </div>
-                    ) : (
-                      <button 
-                        onClick={() => setRequestedIds(prev => [...prev, selectedPerson.id])}
-                        className="w-full bg-[#F9C300] text-zinc-900 font-bold text-[15px] py-3.5 rounded-full active:bg-[#E5B200] transition-colors"
-                      >
-                        Request Location
-                      </button>
-                    )}
-                  </div>
-                )}
 
                 <div className="space-y-3">
                   <button 
-                    onClick={() => router.push('/sharing')}
-                    className="w-full flex items-center justify-between bg-zinc-50 p-4 rounded-2xl active:bg-zinc-100 transition-colors"
-                  >
-                    <span className="text-[16px] font-bold text-zinc-900">Manage my sharing</span>
-                    <ChevronRight size={20} className="text-zinc-400" />
-                  </button>
-                  
-                  <button 
-                    onClick={handleBlock}
+                    onClick={() => {
+                      handleRevokeShare(selectedPerson.uid);
+                      setSelectedPerson(null);
+                    }}
                     className="w-full flex items-center gap-3 bg-red-50/50 p-4 rounded-2xl active:bg-red-50 transition-colors text-left"
                   >
                     <ShieldAlert size={20} className="text-red-500 shrink-0" strokeWidth={2.5} />
                     <div>
-                      <span className="block text-[15px] font-bold text-red-600">Block {selectedPerson.name.split(' ')[0]}</span>
-                      <span className="block text-[13px] font-medium text-red-500/80 mt-0.5">They won&apos;t be able to see you or request location</span>
+                      <span className="block text-[15px] font-bold text-red-600">Revoke sharing with {selectedPerson.name.split(' ')[0]}</span>
+                      <span className="block text-[13px] font-medium text-red-500/80 mt-0.5">They will no longer see your location</span>
                     </div>
                   </button>
                 </div>
