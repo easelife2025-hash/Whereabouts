@@ -1,16 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, MapPin, X, Shield, Bell } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { db, rtdb } from '@/lib/firebase';
+import { ref, onValue, update, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
+import { doc, getDoc, collection, addDoc, serverTimestamp as firestoreServerTimestamp } from 'firebase/firestore';
 
 type Request = {
   id: string;
   name: string;
   imgSeed: string;
   time: string;
+  timestamp: number;
 };
 
 export default function RequestsPage() {
@@ -18,6 +23,51 @@ export default function RequestsPage() {
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [flowStep, setFlowStep] = useState<'initial' | 'duration'>('initial');
   const router = useRouter();
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (!user) return;
+    const incomingRef = ref(rtdb, `location_requests/${user.uid}/incoming`);
+    
+    const unsub = onValue(incomingRef, async (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.val();
+        const pendingIds = Object.keys(data).filter(key => data[key].status === 'pending');
+        
+        const loadedRequests: Request[] = [];
+        for (const pid of pendingIds) {
+          const userDoc = await getDoc(doc(db, 'users', pid));
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            
+            // Format timestamp nicely if we want, or just generic
+            let timeStr = 'Just now';
+            if (data[pid].timestamp) {
+               const diff = new Date().getTime() - data[pid].timestamp;
+               if (diff > 86400000) timeStr = Math.floor(diff/86400000) + 'd ago';
+               else if (diff > 3600000) timeStr = Math.floor(diff/3600000) + 'h ago';
+               else if (diff > 60000) timeStr = Math.floor(diff/60000) + 'm ago';
+            }
+
+            loadedRequests.push({
+              id: pid,
+              name: userData.name,
+              imgSeed: userData.imgSeed || 'default',
+              time: timeStr,
+              timestamp: data[pid].timestamp || new Date().getTime()
+            });
+          }
+        }
+        
+        loadedRequests.sort((a, b) => b.timestamp - a.timestamp);
+        setRequests(loadedRequests);
+      } else {
+        setRequests([]);
+      }
+    });
+
+    return () => unsub();
+  }, [user]);
 
   const openRequest = (req: Request) => {
     setSelectedRequest(req);
@@ -33,21 +83,57 @@ export default function RequestsPage() {
     setFlowStep('duration');
   };
 
-  const handleDeny = () => {
-    if (selectedRequest) {
-      setRequests(prev => prev.filter(r => r.id !== selectedRequest.id));
+  const handleDeny = async () => {
+    if (!selectedRequest || !user) return;
+
+    try {
+      const updates: any = {};
+      updates[`location_requests/${user.uid}/incoming/${selectedRequest.id}`] = { status: 'denied', timestamp: rtdbServerTimestamp() };
+      updates[`location_requests/${selectedRequest.id}/outgoing/${user.uid}`] = { status: 'denied', timestamp: rtdbServerTimestamp() };
+      
+      await update(ref(rtdb), updates);
+    } catch (error) {
+      console.error('Error denying request:', error);
     }
+
     closeRequest();
   };
 
-  const handleSelectDuration = (duration: string) => {
-    if (selectedRequest) {
-      setRequests(prev => prev.filter(r => r.id !== selectedRequest.id));
+  const handleSelectDuration = async (duration: string) => {
+    if (!selectedRequest || !user) return;
+    
+    let expiresAt: Date | null = null;
+    if (duration === '15m') {
+      expiresAt = new Date(new Date().getTime() + 15 * 60000);
+    } else if (duration === '1h') {
+      expiresAt = new Date(new Date().getTime() + 60 * 60000);
+    } else if (duration === '4h') {
+      expiresAt = new Date(new Date().getTime() + 4 * 60 * 60000);
     }
+
+    try {
+      await addDoc(collection(db, 'location_shares'), {
+        requesterId: selectedRequest.id,
+        recipientId: user.uid,
+        status: 'active',
+        createdAt: firestoreServerTimestamp(),
+        expiresAt: expiresAt
+      });
+
+      const updates: any = {};
+      updates[`location_requests/${user.uid}/incoming/${selectedRequest.id}`] = { status: 'accepted', timestamp: rtdbServerTimestamp() };
+      updates[`location_requests/${selectedRequest.id}/outgoing/${user.uid}`] = { status: 'accepted', timestamp: rtdbServerTimestamp() };
+      
+      await update(ref(rtdb), updates);
+
+    } catch (error) {
+      console.error('Error accepting request:', error);
+    }
+    
     closeRequest();
     setTimeout(() => {
       router.push('/map');
-    }, 400); // Wait for modal animation to close
+    }, 400); 
   };
 
   return (
