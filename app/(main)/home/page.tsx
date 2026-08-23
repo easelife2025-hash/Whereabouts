@@ -1,9 +1,12 @@
 'use client';
 
+import { Outfit } from 'next/font/google';
 import { MapPin, UserPlus, ShieldCheck, Activity, ChevronRight, Inbox } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useAuth } from '@/components/auth/AuthProvider';
+
+const outfit = Outfit({ subsets: ['latin'] });
 
 export default function HomePage() {
   const { user, profile } = useAuth();
@@ -27,8 +30,8 @@ export default function HomePage() {
       <div className="px-6 py-6 pb-2">
         <div className="flex justify-between items-start">
           <div>
-            <h2 suppressHydrationWarning className="text-[28px] font-bold text-zinc-900 tracking-tight leading-tight">{greeting},</h2>
-            <h2 className="text-[28px] font-bold text-zinc-400 tracking-tight leading-tight">{firstName}.</h2>
+            <h2 suppressHydrationWarning className={`text-[28px] font-bold text-zinc-900 tracking-tight leading-tight ${outfit.className}`}>{greeting},</h2>
+            <h2 className={`text-[28px] font-bold text-zinc-400 tracking-tight leading-tight ${outfit.className}`}>{firstName}.</h2>
           </div>
           <button className="w-11 h-11 bg-yellow-50 rounded-full flex items-center justify-center text-[#F9C300] active:scale-95 transition-transform">
             <UserPlus size={20} strokeWidth={2.5} />
