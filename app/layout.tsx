@@ -19,9 +19,9 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
   return (
     <html lang="en">
       <body suppressHydrationWarning className="bg-white flex flex-col h-[100dvh] w-full overflow-hidden antialiased text-zinc-900 select-none">
-        
+        <AuthProvider>
           {children}
-        
+        </AuthProvider>
       </body>
     </html>
   );
