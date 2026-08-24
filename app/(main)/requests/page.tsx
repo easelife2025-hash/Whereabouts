@@ -87,6 +87,14 @@ export default function RequestsPage() {
     if (!selectedRequest || !user) return;
 
     try {
+      await addDoc(collection(db, 'location_shares'), {
+        requesterId: selectedRequest.id,
+        recipientId: user.uid,
+        status: 'denied',
+        createdAt: firestoreServerTimestamp(),
+        expiresAt: null
+      });
+
       const updates: any = {};
       updates[`location_requests/${user.uid}/incoming/${selectedRequest.id}`] = { status: 'denied', timestamp: rtdbServerTimestamp() };
       updates[`location_requests/${selectedRequest.id}/outgoing/${user.uid}`] = { status: 'denied', timestamp: rtdbServerTimestamp() };

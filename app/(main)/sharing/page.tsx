@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { ArrowLeft, ShieldAlert, X, Clock, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useAuth } from '@/components/auth/AuthProvider';
+import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
 
 type SharedUser = {
   id: string;
@@ -16,14 +19,99 @@ type SharedUser = {
 
 export default function SharingPermissionsPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [sharedUsers, setSharedUsers] = useState<SharedUser[]>([]);
 
-  const handleRevoke = (id: string) => {
-    setSharedUsers((prev) => prev.filter((user) => user.id !== id));
+  useEffect(() => {
+    if (!user) return;
+
+    const q = query(
+      collection(db, 'location_shares'),
+      where('recipientId', '==', user.uid),
+      where('status', '==', 'active')
+    );
+
+    const unsub = onSnapshot(q, async (snapshot) => {
+      const now = new Date();
+      const activeShares: SharedUser[] = [];
+      const expiredDocs: string[] = [];
+
+      for (const document of snapshot.docs) {
+        const data = document.data();
+        
+        let isExpired = false;
+        if (data.expiresAt) {
+          const expiresDate = data.expiresAt.toDate();
+          if (now > expiresDate) {
+            isExpired = true;
+          }
+        }
+
+        if (isExpired) {
+          expiredDocs.push(document.id);
+          continue;
+        }
+
+        // Fetch user info for the requester
+        const userDoc = await getDoc(doc(db, 'users', data.requesterId));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          
+          let remainingStr = null;
+          let durationStr = 'Until stopped';
+          if (data.expiresAt) {
+             const expiresDate = data.expiresAt.toDate();
+             const diffMs = expiresDate.getTime() - now.getTime();
+             if (diffMs > 0) {
+                if (diffMs > 3600000) remainingStr = Math.ceil(diffMs/3600000) + 'h left';
+                else remainingStr = Math.ceil(diffMs/60000) + 'm left';
+                durationStr = 'Temporary';
+             }
+          }
+
+          activeShares.push({
+            id: document.id,
+            name: userData.name || 'Unknown',
+            imgSeed: userData.imgSeed || 'default',
+            duration: durationStr,
+            remainingTime: remainingStr
+          });
+        }
+      }
+
+      setSharedUsers(activeShares);
+
+      // Clean up expired ones in the background
+      if (expiredDocs.length > 0) {
+        const batch = writeBatch(db);
+        expiredDocs.forEach(id => {
+          batch.update(doc(db, 'location_shares', id), { status: 'expired' });
+        });
+        batch.commit().catch(console.error);
+      }
+    });
+
+    return () => unsub();
+  }, [user]);
+
+  const handleRevoke = async (id: string) => {
+    try {
+      await updateDoc(doc(db, 'location_shares', id), { status: 'revoked' });
+    } catch (error) {
+      console.error('Error revoking share:', error);
+    }
   };
 
-  const handleStopSharingAll = () => {
-    setSharedUsers([]);
+  const handleStopSharingAll = async () => {
+    try {
+      const batch = writeBatch(db);
+      sharedUsers.forEach(u => {
+        batch.update(doc(db, 'location_shares', u.id), { status: 'revoked' });
+      });
+      await batch.commit();
+    } catch (error) {
+      console.error('Error stopping all shares:', error);
+    }
   };
 
   return (
