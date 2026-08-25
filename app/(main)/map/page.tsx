@@ -8,7 +8,8 @@ import { APIProvider, Map, AdvancedMarker, Pin, useMap } from '@vis.gl/react-goo
 import { rtdb, db } from '@/lib/firebase';
 import { ref, onValue } from 'firebase/database';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';\nimport Image from 'next/image';
+import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import Image from 'next/image';
 
 function MapController({ center }: { center: { lat: number; lng: number } | null }) {
   const map = useMap();
