@@ -9,6 +9,7 @@ import { rtdb, db } from '@/lib/firebase';
 import { ref, onValue } from 'firebase/database';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { doc, getDoc } from 'firebase/firestore';
+import Image from 'next/image';
 
 function MapController({ center }: { center: { lat: number; lng: number } | null }) {
   const map = useMap();
