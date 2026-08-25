@@ -8,7 +8,7 @@ import { APIProvider, Map, AdvancedMarker, Pin, useMap } from '@vis.gl/react-goo
 import { rtdb, db } from '@/lib/firebase';
 import { ref, onValue } from 'firebase/database';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import Image from 'next/image';
 
 function MapController({ center }: { center: { lat: number; lng: number } | null }) {
@@ -31,34 +31,60 @@ export default function TrackingPage() {
   useEffect(() => {
     if (!user) return;
     
-    // Listen to all users' locations. In production, secure this with rules.
-    const locationsRef = ref(rtdb, 'user_locations');
-    const unsub = onValue(locationsRef, async (snapshot) => {
-      const data = snapshot.val();
-      if (data) {
-        const newMarkers: any[] = [];
-        for (const uid of Object.keys(data)) {
-          if (uid !== user.uid && data[uid].lat && data[uid].lng) {
-            // Get user info
-            const userDoc = await getDoc(doc(db, 'users', uid));
-            const userData = userDoc.exists() ? userDoc.data() : { name: 'Unknown' };
-            
-            newMarkers.push({
+    // 1. Get the list of people sharing with ME
+    const q = query(
+      collection(db, 'location_shares'),
+      where('requesterId', '==', user.uid),
+      where('status', '==', 'active')
+    );
+    
+    let rtdbUnsubs: (() => void)[] = [];
+    
+    const unsubFirestore = onSnapshot(q, (snapshot) => {
+      // Clear old RTDB listeners when sharing status changes
+      rtdbUnsubs.forEach(unsub => unsub());
+      rtdbUnsubs = [];
+      
+      const authorizedIds = snapshot.docs.map(doc => doc.data().recipientId);
+      
+      if (authorizedIds.length === 0) {
+        setAuthorizedMarkers([]);
+        return;
+      }
+
+      const newMarkersMap = new Map();
+      
+      authorizedIds.forEach(async (uid) => {
+        // Fetch user info just once
+        const userDoc = await getDoc(doc(db, 'users', uid));
+        const userData = userDoc.exists() ? userDoc.data() : { name: 'Unknown' };
+        
+        // 2. Listen to RTDB for these specific authorized users
+        const locRef = ref(rtdb, `user_locations/${uid}`);
+        const unsubRTDB = onValue(locRef, (locSnapshot) => {
+          const data = locSnapshot.val();
+          if (data && data.lat && data.lng) {
+            newMarkersMap.set(uid, {
               uid,
               name: userData.name,
-              lat: data[uid].lat,
-              lng: data[uid].lng,
-              timestamp: data[uid].timestamp
+              lat: data.lat,
+              lng: data.lng,
+              timestamp: data.timestamp
             });
+          } else {
+             newMarkersMap.delete(uid);
           }
-        }
-        setAuthorizedMarkers(newMarkers);
-      } else {
-        setAuthorizedMarkers([]);
-      }
+          // Update state with new array
+          setAuthorizedMarkers(Array.from(newMarkersMap.values()));
+        });
+        rtdbUnsubs.push(unsubRTDB);
+      });
     });
 
-    return () => unsub();
+    return () => {
+      unsubFirestore();
+      rtdbUnsubs.forEach(unsub => unsub());
+    };
   }, [user]);
 
   const handleToggleTracking = () => {

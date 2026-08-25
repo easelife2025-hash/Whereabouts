@@ -20,14 +20,8 @@ service cloud.firestore {
       
       // Reading permissions:
       allow read: if request.auth != null && (
-        // 1. The person sharing can always see their outgoing shares
         request.auth.uid == resource.data.recipientId ||
-        // 2. The requester can see it ONLY if it's active and not expired
-        (
-          request.auth.uid == resource.data.requesterId &&
-          resource.data.status == 'active' &&
-          (resource.data.expiresAt == null || request.time < resource.data.expiresAt)
-        )
+        request.auth.uid == resource.data.requesterId
       );
     }
   }
