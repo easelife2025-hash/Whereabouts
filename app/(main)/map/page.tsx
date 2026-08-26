@@ -8,7 +8,7 @@ import { APIProvider, Map, AdvancedMarker, Pin, useMap } from '@vis.gl/react-goo
 import { rtdb, db } from '@/lib/firebase';
 import { ref, onValue } from 'firebase/database';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { doc, getDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, onSnapshot, writeBatch } from 'firebase/firestore';
 import Image from 'next/image';
 
 function MapController({ center }: { center: { lat: number; lng: number } | null }) {
@@ -27,6 +27,7 @@ export default function TrackingPage() {
   const { location, error, isTracking, isRequesting, requestPermissionAndTrack, stopTracking } = useGeolocation();
   const [authorizedMarkers, setAuthorizedMarkers] = useState<any[]>([]);
   const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [outboundShares, setOutboundShares] = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -49,6 +50,7 @@ export default function TrackingPage() {
       
       if (authorizedIds.length === 0) {
         setAuthorizedMarkers([]);
+        setSelectedUser(null);
         return;
       }
 
@@ -75,7 +77,14 @@ export default function TrackingPage() {
              newMarkersMap.delete(uid);
           }
           // Update state with new array
-          setAuthorizedMarkers(Array.from(newMarkersMap.values()));
+          const newMarkers = Array.from(newMarkersMap.values());
+          setAuthorizedMarkers(newMarkers);
+          setSelectedUser(prev => {
+            if (prev && !newMarkersMap.has(prev.uid)) {
+              return null;
+            }
+            return prev;
+          });
         }, (error) => {
           console.error("RTDB listener error:", error);
         });
@@ -91,11 +100,36 @@ export default function TrackingPage() {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!user) return;
+    const qOut = query(
+      collection(db, 'location_shares'),
+      where('recipientId', '==', user.uid),
+      where('status', '==', 'active')
+    );
+    const unsubOut = onSnapshot(qOut, (snapshot) => {
+      setOutboundShares(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+    return () => unsubOut();
+  }, [user]);
+
   const handleToggleTracking = () => {
     if (isTracking || isRequesting) {
       stopTracking();
     } else {
       requestPermissionAndTrack();
+    }
+  };
+
+  const handleStopSharing = async () => {
+    try {
+      const batch = writeBatch(db);
+      outboundShares.forEach(share => {
+        batch.update(doc(db, 'location_shares', share.id), { status: 'revoked' });
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error("Error stopping shares", err);
     }
   };
 
@@ -210,6 +244,14 @@ export default function TrackingPage() {
                       <p className="text-[13px] font-medium text-zinc-500 mt-0.5 font-mono">
                         {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
                       </p>
+                      {outboundShares.length > 0 && (
+                        <button 
+                          onClick={handleStopSharing}
+                          className="mt-3 w-full bg-red-50 text-red-600 font-bold text-[14px] py-2.5 rounded-xl flex items-center justify-center gap-2 active:bg-red-100 transition-colors"
+                        >
+                          <AlertTriangle size={16} /> Stop Sharing
+                        </button>
+                      )}
                     </>
                   ) : isRequesting ? (
                     <>
@@ -223,11 +265,25 @@ export default function TrackingPage() {
                   ) : (
                     <>
                       <div className="flex items-center gap-2 mb-1">
-                        <div className="w-2 h-2 rounded-full bg-zinc-300"></div>
-                        <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-widest">Offline</span>
+                        <div className={`w-2 h-2 rounded-full ${outboundShares.length > 0 ? 'bg-[#F9C300] animate-pulse' : 'bg-zinc-300'}`}></div>
+                        <span className={`text-[11px] font-bold uppercase tracking-widest ${outboundShares.length > 0 ? 'text-yellow-600' : 'text-zinc-400'}`}>
+                          {outboundShares.length > 0 ? 'Background Sharing' : 'Offline'}
+                        </span>
                       </div>
-                      <h2 className="text-[20px] font-bold text-zinc-900 leading-tight">Not broadcasting</h2>
-                      <p className="text-[13px] font-medium text-zinc-500 mt-0.5">Tap crosshair to enable</p>
+                      <h2 className="text-[20px] font-bold text-zinc-900 leading-tight">
+                        {outboundShares.length > 0 ? 'Location is shared' : 'Not broadcasting'}
+                      </h2>
+                      <p className="text-[13px] font-medium text-zinc-500 mt-0.5">
+                        {outboundShares.length > 0 ? 'You are sharing your location.' : 'Tap crosshair to enable'}
+                      </p>
+                      {outboundShares.length > 0 && (
+                        <button 
+                          onClick={handleStopSharing}
+                          className="mt-3 w-full bg-red-50 text-red-600 font-bold text-[14px] py-2.5 rounded-xl flex items-center justify-center gap-2 active:bg-red-100 transition-colors"
+                        >
+                          <AlertTriangle size={16} /> Stop Sharing
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
