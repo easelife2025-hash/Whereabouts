@@ -52,7 +52,7 @@ export default function TrackingPage() {
         return;
       }
 
-      const newMarkersMap = new Map();
+      const newMarkersMap = new globalThis.Map<string, any>();
       
       authorizedIds.forEach(async (uid) => {
         // Fetch user info just once
