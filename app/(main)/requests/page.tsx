@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { db, rtdb } from '@/lib/firebase';
 import { ref, onValue, update, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
-import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp as firestoreServerTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp as firestoreServerTimestamp, query, where, getDocs } from 'firebase/firestore';
 
 type Request = {
   id: string;

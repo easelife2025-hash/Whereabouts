@@ -428,7 +428,7 @@ export default function FriendsPage() {
                     <ShieldAlert size={20} className="text-red-500 shrink-0" strokeWidth={2.5} />
                     <div>
                       <span className="block text-[15px] font-bold text-red-600">Block {selectedPerson.name.split(' ')[0]}</span>
-                      <span className="block text-[13px] font-medium text-red-500/80 mt-0.5">They won't be able to request your location</span>
+                      <span className="block text-[13px] font-medium text-red-500/80 mt-0.5">They won&apos;t be able to request your location</span>
                     </div>
                   </button>
                 </div>
