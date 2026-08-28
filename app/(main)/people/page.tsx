@@ -226,6 +226,30 @@ export default function FriendsPage() {
             ))}
           </div>
         )}
+        
+        {!isLoading && !isError && allUsers.length === 0 && (
+          <div className="flex flex-col items-center justify-center text-center mt-20 px-6">
+            <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center mb-4">
+              <Search className="text-zinc-300" size={28} />
+            </div>
+            <h3 className="text-lg font-bold text-zinc-900 mb-1">No one else is here yet</h3>
+            <p className="text-sm font-medium text-zinc-500 max-w-[250px]">
+              You are the very first user in your new database! Create a second account in another browser to test the search.
+            </p>
+          </div>
+        )}
+        
+        {!isLoading && !isError && allUsers.length > 0 && filteredUsers.length === 0 && (
+          <div className="flex flex-col items-center justify-center text-center mt-20 px-6">
+            <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center mb-4">
+              <Search className="text-zinc-300" size={28} />
+            </div>
+            <h3 className="text-lg font-bold text-zinc-900 mb-1">No results found</h3>
+            <p className="text-sm font-medium text-zinc-500">
+              No users matching "{searchQuery}"
+            </p>
+          </div>
+        )}
 
         {/* Lists */}
         {!isLoading && !isError && (
