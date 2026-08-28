@@ -79,7 +79,7 @@ export default function TrackingPage() {
           // Update state with new array
           const newMarkers = Array.from(newMarkersMap.values());
           setAuthorizedMarkers(newMarkers);
-          setSelectedUser(prev => {
+          setSelectedUser((prev: any) => {
             if (prev && !newMarkersMap.has(prev.uid)) {
               return null;
             }
