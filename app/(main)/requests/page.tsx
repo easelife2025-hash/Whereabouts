@@ -35,10 +35,15 @@ export default function RequestsPage() {
         const pendingIds = Object.keys(data).filter(key => data[key].status === 'pending');
         
         // Fetch blocks to filter out blocked users
-        const blocksQuery = query(collection(db, 'blocks'), or(where('blockerId', '==', user.uid), where('blockedId', '==', user.uid)));
-        let blocksSnap;
+        const blockedByMeQuery = query(collection(db, 'blocks'), where('blockerId', '==', user.uid));
+        const blockedMeQuery = query(collection(db, 'blocks'), where('blockedId', '==', user.uid));
+        
         try {
-          blocksSnap = await getDocs(blocksQuery);
+          const [blockedByMeSnap, blockedMeSnap] = await Promise.all([
+            getDocs(blockedByMeQuery),
+            getDocs(blockedMeQuery)
+          ]);
+          blocksSnap = [...blockedByMeSnap.docs, ...blockedMeSnap.docs];
         } catch (e: any) {
           console.error("Error fetching blocks in requests:", e);
           throw new Error("Failed to fetch blocks collection. " + e.message);

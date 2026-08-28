@@ -29,6 +29,7 @@ export default function FriendsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
   
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<Record<string, LocationRequest>>({});
@@ -44,12 +45,16 @@ export default function FriendsPage() {
     
     const fetchUsersAndBlocks = async () => {
       try {
-        const blocksQuery = query(collection(db, 'blocks'), or(where('blockerId', '==', user.uid), where('blockedId', '==', user.uid)));
+        const blockedByMeQuery = query(collection(db, 'blocks'), where('blockerId', '==', user.uid));
+        const blockedMeQuery = query(collection(db, 'blocks'), where('blockedId', '==', user.uid));
         
-        const [blocksSnap, snapshot] = await Promise.all([
-          getDocs(blocksQuery),
+        const [blockedByMeSnap, blockedMeSnap, snapshot] = await Promise.all([
+          getDocs(blockedByMeQuery),
+          getDocs(blockedMeQuery),
           getDocs(collection(db, 'users'))
         ]);
+        
+        const blocksSnap = [...blockedByMeSnap.docs, ...blockedMeSnap.docs];
         
         const blocked = new Set<string>();
         blocksSnap.forEach(doc => {
@@ -69,6 +74,7 @@ export default function FriendsPage() {
       } catch (error) {
         console.error("Error fetching users:", error);
         setIsError(true);
+        setErrorMsg(error instanceof Error ? error.message : String(error));
       }
     };
     fetchUsersAndBlocks();
@@ -246,7 +252,19 @@ export default function FriendsPage() {
             </div>
             <h3 className="text-lg font-bold text-zinc-900 mb-1">No results found</h3>
             <p className="text-sm font-medium text-zinc-500">
-              No users matching "{searchQuery}"
+              No users matching &quot;{searchQuery}&quot;
+            </p>
+          </div>
+        )}
+
+        {isError && (
+          <div className="flex flex-col items-center justify-center text-center mt-20 px-6">
+            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="text-red-500" size={28} />
+            </div>
+            <h3 className="text-lg font-bold text-zinc-900 mb-1">Failed to load</h3>
+            <p className="text-sm font-medium text-red-500 max-w-[250px]">
+              {errorMsg || "A permission error occurred."}
             </p>
           </div>
         )}

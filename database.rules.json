@@ -2,16 +2,15 @@
   "rules": {
     "location_requests": {
       "$uid": {
+        ".read": "$uid === auth.uid",
         "incoming": {
           "$requesterId": {
-            ".read": "$uid === auth.uid",
-            ".write": "($uid === auth.uid) || ($requesterId === auth.uid && !root.child('blocks').child($uid).child($requesterId).exists() && !root.child('blocks').child($requesterId).child($uid).exists())"
+            ".write": "($uid === auth.uid) || ($requesterId === auth.uid)"
           }
         },
         "outgoing": {
           "$recipientId": {
-            ".read": "$uid === auth.uid",
-            ".write": "($uid === auth.uid) || ($recipientId === auth.uid && !root.child('blocks').child($uid).child($recipientId).exists() && !root.child('blocks').child($recipientId).child($uid).exists())"
+            ".write": "($uid === auth.uid) || ($recipientId === auth.uid)"
           }
         }
       }
