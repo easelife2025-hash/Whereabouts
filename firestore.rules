@@ -45,7 +45,7 @@ service cloud.firestore {
       allow read: if request.auth != null && (
         request.auth.uid == resource.data.recipientId ||
         request.auth.uid == resource.data.requesterId
-      ) && !isShareBlocked(resource.data.recipientId, resource.data.requesterId);
+      );
     }
   }
 }

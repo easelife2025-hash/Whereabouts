@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { db, rtdb } from '@/lib/firebase';
-import { doc, setDoc, collection, getDocs, query, where, serverTimestamp as firestoreServerTimestamp } from 'firebase/firestore';
+import { doc, setDoc, collection, getDocs, query, where, or, writeBatch, serverTimestamp as firestoreServerTimestamp } from 'firebase/firestore';
 import { ref, onValue, set, update, remove, get, serverTimestamp } from 'firebase/database';
 
 type UserProfile = {
@@ -44,18 +44,19 @@ export default function FriendsPage() {
     
     const fetchUsersAndBlocks = async () => {
       try {
-        const blocksQuery1 = query(collection(db, 'blocks'), where('blockerId', '==', user.uid));
-        const blocksQuery2 = query(collection(db, 'blocks'), where('blockedId', '==', user.uid));
+        const blocksQuery = query(collection(db, 'blocks'), or(where('blockerId', '==', user.uid), where('blockedId', '==', user.uid)));
         
-        const [blocks1, blocks2, snapshot] = await Promise.all([
-          getDocs(blocksQuery1),
-          getDocs(blocksQuery2),
+        const [blocksSnap, snapshot] = await Promise.all([
+          getDocs(blocksQuery),
           getDocs(collection(db, 'users'))
         ]);
         
         const blocked = new Set<string>();
-        blocks1.forEach(doc => blocked.add(doc.data().blockedId));
-        blocks2.forEach(doc => blocked.add(doc.data().blockerId));
+        blocksSnap.forEach(doc => {
+          const data = doc.data();
+          if (data.blockerId === user.uid) blocked.add(data.blockedId);
+          if (data.blockedId === user.uid) blocked.add(data.blockerId);
+        });
         setBlockedUsers(blocked);
 
         const usersList: UserProfile[] = [];

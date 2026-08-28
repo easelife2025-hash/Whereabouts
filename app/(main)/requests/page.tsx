@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { db, rtdb } from '@/lib/firebase';
 import { ref, onValue, update, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
-import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp as firestoreServerTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp as firestoreServerTimestamp, query, where, or, getDocs } from 'firebase/firestore';
 
 type Request = {
   id: string;
@@ -35,14 +35,21 @@ export default function RequestsPage() {
         const pendingIds = Object.keys(data).filter(key => data[key].status === 'pending');
         
         // Fetch blocks to filter out blocked users
-        const blocksQuery = query(collection(db, 'blocks'), where('blockerId', '==', user.uid));
-        const blocksSnap = await getDocs(blocksQuery);
+        const blocksQuery = query(collection(db, 'blocks'), or(where('blockerId', '==', user.uid), where('blockedId', '==', user.uid)));
+        let blocksSnap;
+        try {
+          blocksSnap = await getDocs(blocksQuery);
+        } catch (e) {
+          console.error("Error fetching blocks in requests:", e);
+          throw new Error("Failed to fetch blocks collection. " + e.message);
+        }
+        
         const blockedIds = new Set<string>();
-        blocksSnap.forEach(d => blockedIds.add(d.data().blockedId));
-
-        const blocksQuery2 = query(collection(db, 'blocks'), where('blockedId', '==', user.uid));
-        const blocksSnap2 = await getDocs(blocksQuery2);
-        blocksSnap2.forEach(d => blockedIds.add(d.data().blockerId));
+        blocksSnap.forEach(d => {
+          const data = d.data();
+          if (data.blockerId === user.uid) blockedIds.add(data.blockedId);
+          if (data.blockedId === user.uid) blockedIds.add(data.blockerId);
+        });
 
         const loadedRequests: Request[] = [];
         for (const pid of pendingIds) {
