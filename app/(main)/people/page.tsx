@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { db, rtdb } from '@/lib/firebase';
-import { doc, setDoc, collection, getDocs, query, where, or, writeBatch, serverTimestamp as firestoreServerTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { ref, onValue, set, update, remove, get, serverTimestamp } from 'firebase/database';
 
 type UserProfile = {
@@ -29,7 +29,6 @@ export default function FriendsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
-  const [errorMsg, setErrorMsg] = useState("");
   
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [incomingRequests, setIncomingRequests] = useState<Record<string, LocationRequest>>({});
@@ -37,36 +36,16 @@ export default function FriendsPage() {
   
   const [selectedPerson, setSelectedPerson] = useState<UserProfile | null>(null);
 
-  const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set());
-
-  // Load all users and blocks from Firestore
+  // Load all users from Firestore
   useEffect(() => {
     if (!user) return;
-    
-    const fetchUsersAndBlocks = async () => {
+    const fetchUsers = async () => {
       try {
-        const blockedByMeQuery = query(collection(db, 'blocks'), where('blockerId', '==', user.uid));
-        const blockedMeQuery = query(collection(db, 'blocks'), where('blockedId', '==', user.uid));
-        
-        const [blockedByMeSnap, blockedMeSnap, snapshot] = await Promise.all([
-          getDocs(blockedByMeQuery),
-          getDocs(blockedMeQuery),
-          getDocs(collection(db, 'users'))
-        ]);
-        
-        const blocksSnap = [...blockedByMeSnap.docs, ...blockedMeSnap.docs];
-        
-        const blocked = new Set<string>();
-        blocksSnap.forEach(doc => {
-          const data = doc.data();
-          if (data.blockerId === user.uid) blocked.add(data.blockedId);
-          if (data.blockedId === user.uid) blocked.add(data.blockerId);
-        });
-        setBlockedUsers(blocked);
-
+        const usersRef = collection(db, 'users');
+        const snapshot = await getDocs(usersRef);
         const usersList: UserProfile[] = [];
         snapshot.forEach(doc => {
-          if (doc.id !== user.uid && !blocked.has(doc.id)) {
+          if (doc.id !== user.uid) {
             usersList.push({ uid: doc.id, ...doc.data() } as UserProfile);
           }
         });
@@ -74,10 +53,9 @@ export default function FriendsPage() {
       } catch (error) {
         console.error("Error fetching users:", error);
         setIsError(true);
-        setErrorMsg(error instanceof Error ? error.message : String(error));
       }
     };
-    fetchUsersAndBlocks();
+    fetchUsers();
   }, [user]);
 
   // Load RTDB request states
@@ -135,30 +113,6 @@ export default function FriendsPage() {
     updates[`location_requests/${senderId}/outgoing/${user.uid}`] = { status: response, timestamp: serverTimestamp() };
     
     await update(ref(rtdb), updates);
-  };
-
-    const handleBlockUser = async (personUid: string) => {
-    if (!user) return;
-    try {
-      // 1. Write block to Firestore
-      await setDoc(doc(db, 'blocks', `${user.uid}_${personUid}`), {
-        blockerId: user.uid,
-        blockedId: personUid,
-        createdAt: firestoreServerTimestamp()
-      });
-      // 2. Remove location sharing actively
-      await update(ref(rtdb), {
-        [`location_requests/${user.uid}/incoming/${personUid}`]: null,
-        [`location_requests/${personUid}/outgoing/${user.uid}`]: null,
-        [`location_requests/${user.uid}/outgoing/${personUid}`]: null,
-        [`location_requests/${personUid}/incoming/${user.uid}`]: null
-      });
-      
-      setAllUsers(prev => prev.filter(u => u.uid !== personUid));
-      setSelectedPerson(null);
-    } catch (error) {
-      console.error('Error blocking user:', error);
-    }
   };
 
   const handleRevokeShare = async (recipientId: string) => {
@@ -230,42 +184,6 @@ export default function FriendsPage() {
                 </div>
               </div>
             ))}
-          </div>
-        )}
-        
-        {!isLoading && !isError && allUsers.length === 0 && (
-          <div className="flex flex-col items-center justify-center text-center mt-20 px-6">
-            <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center mb-4">
-              <Search className="text-zinc-300" size={28} />
-            </div>
-            <h3 className="text-lg font-bold text-zinc-900 mb-1">No one else is here yet</h3>
-            <p className="text-sm font-medium text-zinc-500 max-w-[250px]">
-              You are the very first user in your new database! Create a second account in another browser to test the search.
-            </p>
-          </div>
-        )}
-        
-        {!isLoading && !isError && allUsers.length > 0 && filteredUsers.length === 0 && (
-          <div className="flex flex-col items-center justify-center text-center mt-20 px-6">
-            <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center mb-4">
-              <Search className="text-zinc-300" size={28} />
-            </div>
-            <h3 className="text-lg font-bold text-zinc-900 mb-1">No results found</h3>
-            <p className="text-sm font-medium text-zinc-500">
-              No users matching &quot;{searchQuery}&quot;
-            </p>
-          </div>
-        )}
-
-        {isError && (
-          <div className="flex flex-col items-center justify-center text-center mt-20 px-6">
-            <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
-              <AlertCircle className="text-red-500" size={28} />
-            </div>
-            <h3 className="text-lg font-bold text-zinc-900 mb-1">Failed to load</h3>
-            <p className="text-sm font-medium text-red-500 max-w-[250px]">
-              {errorMsg || "A permission error occurred."}
-            </p>
           </div>
         )}
 
@@ -462,16 +380,6 @@ export default function FriendsPage() {
                     <div>
                       <span className="block text-[15px] font-bold text-red-600">Revoke sharing with {selectedPerson.name.split(' ')[0]}</span>
                       <span className="block text-[13px] font-medium text-red-500/80 mt-0.5">They will no longer see your location</span>
-                    </div>
-                  </button>
-                  <button 
-                    onClick={() => handleBlockUser(selectedPerson.uid)}
-                    className="w-full flex items-center gap-3 bg-red-50 p-4 rounded-2xl active:bg-red-100 transition-colors text-left mt-3"
-                  >
-                    <ShieldAlert size={20} className="text-red-500 shrink-0" strokeWidth={2.5} />
-                    <div>
-                      <span className="block text-[15px] font-bold text-red-600">Block {selectedPerson.name.split(' ')[0]}</span>
-                      <span className="block text-[13px] font-medium text-red-500/80 mt-0.5">They won&apos;t be able to request your location</span>
                     </div>
                   </button>
                 </div>

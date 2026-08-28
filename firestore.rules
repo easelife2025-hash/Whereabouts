@@ -6,40 +6,17 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    function isShareBlocked(recipientId, requesterId) {
-      return exists(/databases/$(database)/documents/blocks/$(recipientId + '_' + requesterId)) ||
-             exists(/databases/$(database)/documents/blocks/$(requesterId + '_' + recipientId));
-    }
-
     // Users Collection
     match /users/{userId} {
       allow read: if request.auth != null;
       allow write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // Blocks Collection
-    match /blocks/{blockId} {
-      // Allow reading if you are either the blocker or blocked
-      allow read: if request.auth != null && (
-        request.auth.uid == resource.data.blockerId ||
-        request.auth.uid == resource.data.blockedId
-      );
-      // Ensure the document ID is blockerId_blockedId
-      allow create: if request.auth != null 
-                    && request.auth.uid == request.resource.data.blockerId
-                    && blockId == request.resource.data.blockerId + '_' + request.resource.data.blockedId;
-      allow delete: if request.auth != null && request.auth.uid == resource.data.blockerId;
-    }
-
     // Location Shares Collection
     match /location_shares/{shareId} {
       // The person sharing their location can manage their own shares
-      allow create: if request.auth != null 
-                    && request.auth.uid == request.resource.data.recipientId
-                    && !isShareBlocked(request.resource.data.recipientId, request.resource.data.requesterId);
-                    
-      allow update, delete: if request.auth != null 
-                            && request.auth.uid == resource.data.recipientId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.recipientId;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.recipientId;
       
       // Reading permissions:
       allow read: if request.auth != null && (

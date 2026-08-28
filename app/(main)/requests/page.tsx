@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { db, rtdb } from '@/lib/firebase';
 import { ref, onValue, update, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
-import { doc, setDoc, getDoc, collection, addDoc, serverTimestamp as firestoreServerTimestamp, query, where, or, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, serverTimestamp as firestoreServerTimestamp } from 'firebase/firestore';
 
 type Request = {
   id: string;
@@ -34,32 +34,8 @@ export default function RequestsPage() {
         const data = snapshot.val();
         const pendingIds = Object.keys(data).filter(key => data[key].status === 'pending');
         
-        // Fetch blocks to filter out blocked users
-        const blockedByMeQuery = query(collection(db, 'blocks'), where('blockerId', '==', user.uid));
-        const blockedMeQuery = query(collection(db, 'blocks'), where('blockedId', '==', user.uid));
-        
-        try {
-          const [blockedByMeSnap, blockedMeSnap] = await Promise.all([
-            getDocs(blockedByMeQuery),
-            getDocs(blockedMeQuery)
-          ]);
-          blocksSnap = [...blockedByMeSnap.docs, ...blockedMeSnap.docs];
-        } catch (e: any) {
-          console.error("Error fetching blocks in requests:", e);
-          throw new Error("Failed to fetch blocks collection. " + e.message);
-        }
-        
-        const blockedIds = new Set<string>();
-        blocksSnap.forEach(d => {
-          const data = d.data();
-          if (data.blockerId === user.uid) blockedIds.add(data.blockedId);
-          if (data.blockedId === user.uid) blockedIds.add(data.blockerId);
-        });
-
         const loadedRequests: Request[] = [];
         for (const pid of pendingIds) {
-          if (blockedIds.has(pid)) continue;
-
           const userDoc = await getDoc(doc(db, 'users', pid));
           if (userDoc.exists()) {
             const userData = userDoc.data();
@@ -105,27 +81,6 @@ export default function RequestsPage() {
 
   const handleAllow = () => {
     setFlowStep('duration');
-  };
-
-  const handleBlock = async () => {
-    if (!selectedRequest || !user) return;
-    try {
-      await setDoc(doc(db, 'blocks', `${user.uid}_${selectedRequest.id}`), {
-        blockerId: user.uid,
-        blockedId: selectedRequest.id,
-        createdAt: firestoreServerTimestamp()
-      });
-      await update(ref(rtdb), {
-        [`location_requests/${user.uid}/incoming/${selectedRequest.id}`]: null,
-        [`location_requests/${selectedRequest.id}/outgoing/${user.uid}`]: null,
-        [`location_requests/${user.uid}/outgoing/${selectedRequest.id}`]: null,
-        [`location_requests/${selectedRequest.id}/incoming/${user.uid}`]: null
-      });
-    } catch (error) {}
-    
-    setRequests(prev => prev.filter(req => req.id !== selectedRequest.id));
-    setFlowStep('initial');
-    setTimeout(() => setSelectedRequest(null), 100);
   };
 
   const handleDeny = async () => {
@@ -293,12 +248,6 @@ export default function RequestsPage() {
                           className="w-full bg-white text-[#F9C300] font-bold text-[17px] py-4 rounded-full border border-zinc-200 active:bg-zinc-50 transition-colors"
                         >
                           Deny
-                        </button>
-                        <button 
-                          onClick={handleBlock}
-                          className="w-full bg-red-50 text-red-600 font-bold text-[17px] py-4 rounded-full active:bg-red-100 transition-colors mt-3"
-                        >
-                          Block User
                         </button>
                       </div>
                     </motion.div>
