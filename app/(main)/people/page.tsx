@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { db, rtdb } from '@/lib/firebase';
-import { doc, setDoc, collection, getDocs, query, where, serverTimestamp as firestoreServerTimestamp } from 'firebase/firestore';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { ref, onValue, set, update, remove, get, serverTimestamp } from 'firebase/database';
 
 type UserProfile = {
@@ -36,31 +36,16 @@ export default function FriendsPage() {
   
   const [selectedPerson, setSelectedPerson] = useState<UserProfile | null>(null);
 
-  const [blockedUsers, setBlockedUsers] = useState<Set<string>>(new Set());
-
-  // Load all users and blocks from Firestore
+  // Load all users from Firestore
   useEffect(() => {
     if (!user) return;
-    
-    const fetchUsersAndBlocks = async () => {
+    const fetchUsers = async () => {
       try {
-        const blocksQuery1 = query(collection(db, 'blocks'), where('blockerId', '==', user.uid));
-        const blocksQuery2 = query(collection(db, 'blocks'), where('blockedId', '==', user.uid));
-        
-        const [blocks1, blocks2, snapshot] = await Promise.all([
-          getDocs(blocksQuery1),
-          getDocs(blocksQuery2),
-          getDocs(collection(db, 'users'))
-        ]);
-        
-        const blocked = new Set<string>();
-        blocks1.forEach(doc => blocked.add(doc.data().blockedId));
-        blocks2.forEach(doc => blocked.add(doc.data().blockerId));
-        setBlockedUsers(blocked);
-
+        const usersRef = collection(db, 'users');
+        const snapshot = await getDocs(usersRef);
         const usersList: UserProfile[] = [];
         snapshot.forEach(doc => {
-          if (doc.id !== user.uid && !blocked.has(doc.id)) {
+          if (doc.id !== user.uid) {
             usersList.push({ uid: doc.id, ...doc.data() } as UserProfile);
           }
         });
@@ -70,7 +55,7 @@ export default function FriendsPage() {
         setIsError(true);
       }
     };
-    fetchUsersAndBlocks();
+    fetchUsers();
   }, [user]);
 
   // Load RTDB request states
@@ -128,30 +113,6 @@ export default function FriendsPage() {
     updates[`location_requests/${senderId}/outgoing/${user.uid}`] = { status: response, timestamp: serverTimestamp() };
     
     await update(ref(rtdb), updates);
-  };
-
-    const handleBlockUser = async (personUid: string) => {
-    if (!user) return;
-    try {
-      // 1. Write block to Firestore
-      await setDoc(doc(db, 'blocks', `${user.uid}_${personUid}`), {
-        blockerId: user.uid,
-        blockedId: personUid,
-        createdAt: firestoreServerTimestamp()
-      });
-      // 2. Remove location sharing actively
-      await update(ref(rtdb), {
-        [`location_requests/${user.uid}/incoming/${personUid}`]: null,
-        [`location_requests/${personUid}/outgoing/${user.uid}`]: null,
-        [`location_requests/${user.uid}/outgoing/${personUid}`]: null,
-        [`location_requests/${personUid}/incoming/${user.uid}`]: null
-      });
-      
-      setAllUsers(prev => prev.filter(u => u.uid !== personUid));
-      setSelectedPerson(null);
-    } catch (error) {
-      console.error('Error blocking user:', error);
-    }
   };
 
   const handleRevokeShare = async (recipientId: string) => {
@@ -419,16 +380,6 @@ export default function FriendsPage() {
                     <div>
                       <span className="block text-[15px] font-bold text-red-600">Revoke sharing with {selectedPerson.name.split(' ')[0]}</span>
                       <span className="block text-[13px] font-medium text-red-500/80 mt-0.5">They will no longer see your location</span>
-                    </div>
-                  </button>
-                  <button 
-                    onClick={() => handleBlockUser(selectedPerson.uid)}
-                    className="w-full flex items-center gap-3 bg-red-50 p-4 rounded-2xl active:bg-red-100 transition-colors text-left mt-3"
-                  >
-                    <ShieldAlert size={20} className="text-red-500 shrink-0" strokeWidth={2.5} />
-                    <div>
-                      <span className="block text-[15px] font-bold text-red-600">Block {selectedPerson.name.split(' ')[0]}</span>
-                      <span className="block text-[13px] font-medium text-red-500/80 mt-0.5">They won't be able to request your location</span>
                     </div>
                   </button>
                 </div>
