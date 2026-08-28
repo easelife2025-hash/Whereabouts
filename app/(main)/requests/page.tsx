@@ -39,7 +39,7 @@ export default function RequestsPage() {
         let blocksSnap;
         try {
           blocksSnap = await getDocs(blocksQuery);
-        } catch (e) {
+        } catch (e: any) {
           console.error("Error fetching blocks in requests:", e);
           throw new Error("Failed to fetch blocks collection. " + e.message);
         }
