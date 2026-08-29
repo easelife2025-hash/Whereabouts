@@ -190,6 +190,28 @@ export default function FriendsPage() {
         {/* Lists */}
         {!isLoading && !isError && (
           <div className="pb-8 space-y-8 mt-6">
+
+            {/* Empty State: No Registered Users at all */}
+            {allUsers.length === 0 && (
+              <div className="flex flex-col items-center justify-center text-center py-12 px-4">
+                <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mb-4">
+                  <UserPlus size={28} className="text-zinc-400" strokeWidth={2} />
+                </div>
+                <h3 className="text-[17px] font-bold text-zinc-900 mb-1">No users found</h3>
+                <p className="text-[14px] text-zinc-500 max-w-[240px]">There are no other registered users in the app yet.</p>
+              </div>
+            )}
+
+            {/* Empty State: Search found nothing */}
+            {allUsers.length > 0 && filteredUsers.length === 0 && (
+              <div className="flex flex-col items-center justify-center text-center py-12 px-4">
+                <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mb-4">
+                  <Search size={28} className="text-zinc-400" strokeWidth={2} />
+                </div>
+                <h3 className="text-[17px] font-bold text-zinc-900 mb-1">No matches</h3>
+                <p className="text-[14px] text-zinc-500 max-w-[240px]">No users match your search &quot;{searchQuery}&quot;</p>
+              </div>
+            )}
             
             {/* Pending Requests */}
             {pendingIncoming.length > 0 && (
