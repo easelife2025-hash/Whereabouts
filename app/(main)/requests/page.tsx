@@ -6,9 +6,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Clock, MapPin, X, Shield, Bell } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { db, rtdb } from '@/lib/firebase';
-import { ref, onValue, update, serverTimestamp as rtdbServerTimestamp } from 'firebase/database';
-import { doc, getDoc, collection, addDoc, serverTimestamp as firestoreServerTimestamp } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+
 
 type Request = {
   id: string;
@@ -27,39 +27,36 @@ export default function RequestsPage() {
 
   useEffect(() => {
     if (!user) return;
-    const incomingRef = ref(rtdb, `location_requests/${user.uid}/incoming`);
+    const incomingQuery = query(collection(db, 'location_requests'), where('recipientId', '==', user.uid), where('status', '==', 'pending'));
     
-    const unsub = onValue(incomingRef, async (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.val();
-        const pendingIds = Object.keys(data).filter(key => data[key].status === 'pending');
-        
+    const unsub = onSnapshot(incomingQuery, async (snapshot) => {
+      if (!snapshot.empty) {
         const loadedRequests: Request[] = [];
-        for (const pid of pendingIds) {
-          const userDoc = await getDoc(doc(db, 'users', pid));
+        for (const d of snapshot.docs) {
+          const reqData = d.data();
+          const userDoc = await getDoc(doc(db, 'users', reqData.senderId));
           if (userDoc.exists()) {
             const userData = userDoc.data();
             
-            // Format timestamp nicely if we want, or just generic
             let timeStr = 'Just now';
-            if (data[pid].timestamp) {
-               const diff = new Date().getTime() - data[pid].timestamp;
+            if (reqData.timestamp) {
+               const millis = reqData.timestamp.toMillis();
+               const diff = new Date().getTime() - millis;
                if (diff > 86400000) timeStr = Math.floor(diff/86400000) + 'd ago';
                else if (diff > 3600000) timeStr = Math.floor(diff/3600000) + 'h ago';
                else if (diff > 60000) timeStr = Math.floor(diff/60000) + 'm ago';
             }
 
             loadedRequests.push({
-              id: pid,
+              id: reqData.senderId,
               name: userData.name,
               imgSeed: userData.imgSeed || 'default',
               time: timeStr,
-              timestamp: data[pid].timestamp || new Date().getTime()
+              timestamp: reqData.timestamp ? reqData.timestamp.toMillis() : new Date().getTime()
             });
           }
         }
-        
-        loadedRequests.sort((a, b) => b.timestamp - a.timestamp);
+        loadedRequests.sort((a,b) => b.timestamp - a.timestamp);
         setRequests(loadedRequests);
       } else {
         setRequests([]);
@@ -91,15 +88,11 @@ export default function RequestsPage() {
         requesterId: selectedRequest.id,
         recipientId: user.uid,
         status: 'denied',
-        createdAt: firestoreServerTimestamp(),
+        createdAt: serverTimestamp(),
         expiresAt: null
       });
 
-      const updates: any = {};
-      updates[`location_requests/${user.uid}/incoming/${selectedRequest.id}`] = { status: 'denied', timestamp: rtdbServerTimestamp() };
-      updates[`location_requests/${selectedRequest.id}/outgoing/${user.uid}`] = { status: 'denied', timestamp: rtdbServerTimestamp() };
-      
-      await update(ref(rtdb), updates);
+      await updateDoc(doc(db, 'location_requests', `${selectedRequest.id}_${user.uid}`), { status: 'denied', timestamp: serverTimestamp() });
     } catch (error) {
       console.error('Error denying request:', error);
     }
@@ -124,15 +117,11 @@ export default function RequestsPage() {
         requesterId: selectedRequest.id,
         recipientId: user.uid,
         status: 'active',
-        createdAt: firestoreServerTimestamp(),
+        createdAt: serverTimestamp(),
         expiresAt: expiresAt
       });
 
-      const updates: any = {};
-      updates[`location_requests/${user.uid}/incoming/${selectedRequest.id}`] = { status: 'accepted', timestamp: rtdbServerTimestamp() };
-      updates[`location_requests/${selectedRequest.id}/outgoing/${user.uid}`] = { status: 'accepted', timestamp: rtdbServerTimestamp() };
-      
-      await update(ref(rtdb), updates);
+      await updateDoc(doc(db, 'location_requests', `${selectedRequest.id}_${user.uid}`), { status: 'accepted', timestamp: serverTimestamp() });
 
     } catch (error) {
       console.error('Error accepting request:', error);

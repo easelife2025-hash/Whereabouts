@@ -6,6 +6,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    function getBlockedUsers(userId) {
+      let userDoc = get(/databases/$(database)/documents/users/$(userId));
+      return (userDoc != null && 'blockedUsers' in userDoc.data) ? userDoc.data.blockedUsers : [];
+    }
+
     // Users Collection
     match /users/{userId} {
       allow read: if request.auth != null;
@@ -14,15 +19,46 @@ service cloud.firestore {
 
     // Location Shares Collection
     match /location_shares/{shareId} {
-      // The person sharing their location can manage their own shares
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.recipientId;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.recipientId &&
+        !(request.auth.uid in getBlockedUsers(request.resource.data.requesterId)) &&
+        !(request.resource.data.requesterId in getBlockedUsers(request.auth.uid));
+      
       allow update, delete: if request.auth != null && request.auth.uid == resource.data.recipientId;
       
-      // Reading permissions:
       allow read: if request.auth != null && (
         request.auth.uid == resource.data.recipientId ||
         request.auth.uid == resource.data.requesterId
       );
+    }
+
+    // Location Requests Collection (Migrated from RTDB)
+    match /location_requests/{requestId} {
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.senderId &&
+        !(request.auth.uid in getBlockedUsers(request.resource.data.recipientId)) &&
+        !(request.resource.data.recipientId in getBlockedUsers(request.auth.uid));
+      
+      allow update, delete: if request.auth != null && (
+        request.auth.uid == resource.data.senderId ||
+        request.auth.uid == resource.data.recipientId
+      );
+
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.senderId ||
+        request.auth.uid == resource.data.recipientId
+      );
+    }
+
+    // User Locations (Migrated from RTDB)
+    match /user_locations/{userId} {
+      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && (
+        request.auth.uid == userId ||
+        request.auth.uid in resource.data.viewers
+      ) &&
+      !(request.auth.uid in getBlockedUsers(userId)) &&
+      !(userId in getBlockedUsers(request.auth.uid));
     }
   }
 }

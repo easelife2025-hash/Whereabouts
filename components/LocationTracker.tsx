@@ -1,13 +1,13 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { db, rtdb } from '@/lib/firebase';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { ref, set, serverTimestamp, onDisconnect } from 'firebase/database';
+import { db } from '@/lib/firebase';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 
 export function LocationTracker() {
   const { user } = useAuth();
   const [hasActiveShares, setHasActiveShares] = useState(false);
+  const [activeViewers, setActiveViewers] = useState<string[]>([]);
 
   // 1. Monitor active shares
   useEffect(() => {
@@ -22,6 +22,7 @@ export function LocationTracker() {
     const unsub = onSnapshot(q, (snapshot) => {
       const now = new Date();
       let hasAny = false;
+      const viewers: string[] = [];
       
       for (const doc of snapshot.docs) {
         const data = doc.data();
@@ -34,11 +35,12 @@ export function LocationTracker() {
         }
         if (!isExpired) {
           hasAny = true;
-          break;
+          if (data.requesterId && !viewers.includes(data.requesterId)) viewers.push(data.requesterId);
         }
       }
       
       setHasActiveShares(hasAny);
+      setActiveViewers(viewers);
     });
 
     return () => unsub();
@@ -50,18 +52,14 @@ export function LocationTracker() {
     let isActive = true;
 
     if (user && hasActiveShares && typeof window !== 'undefined' && 'geolocation' in navigator) {
-      const locationRef = ref(rtdb, `user_locations/${user.uid}`);
-      
-      // Clean up location on disconnect (if they close app)
-      onDisconnect(locationRef).remove().catch(console.error);
-
       watchId = navigator.geolocation.watchPosition(
         (position) => {
           if (!isActive) return;
-          set(locationRef, {
+          setDoc(doc(db, 'user_locations', user.uid), {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
-            timestamp: serverTimestamp()
+            timestamp: serverTimestamp(),
+            viewers: activeViewers
           }).catch(console.error);
         },
         (error) => {
@@ -81,13 +79,10 @@ export function LocationTracker() {
         navigator.geolocation.clearWatch(watchId);
       }
       if (user && hasActiveShares) {
-        // When stopping (e.g. sharing ends or component unmounts), remove location
-        const locationRef = ref(rtdb, `user_locations/${user.uid}`);
-        set(locationRef, null).catch(console.error);
-        onDisconnect(locationRef).cancel().catch(console.error);
+        deleteDoc(doc(db, 'user_locations', user.uid)).catch(console.error);
       }
     };
-  }, [user, hasActiveShares]);
+  }, [user, hasActiveShares, activeViewers]);
 
   return null;
 }

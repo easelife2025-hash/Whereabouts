@@ -6,9 +6,8 @@ import Image from 'next/image';
 import { motion, AnimatePresence } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { db, rtdb } from '@/lib/firebase';
-import { collection, getDocs, query, where } from 'firebase/firestore';
-import { ref, onValue, set, update, remove, get, serverTimestamp } from 'firebase/database';
+import { db } from '@/lib/firebase';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 
 type UserProfile = {
   uid: string;
@@ -58,18 +57,31 @@ export default function FriendsPage() {
     fetchUsers();
   }, [user]);
 
-  // Load RTDB request states
+  // Load Firestore request states
+  const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
+  useEffect(() => {
+    if (!user) return;
+    const unsub = onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+      if (docSnap.exists() && docSnap.data().blockedUsers) {
+        setBlockedUsers(docSnap.data().blockedUsers);
+      } else {
+        setBlockedUsers([]);
+      }
+    });
+    return () => unsub();
+  }, [user]);
+
   useEffect(() => {
     if (!user) return;
     
     // Listen to incoming
-    const incomingRef = ref(rtdb, `location_requests/${user.uid}/incoming`);
-    const unsubIncoming = onValue(incomingRef, (snapshot) => {
-      if (snapshot.exists()) {
-        setIncomingRequests(snapshot.val());
-      } else {
-        setIncomingRequests({});
-      }
+    const incomingQuery = query(collection(db, 'location_requests'), where('recipientId', '==', user.uid));
+    const unsubIncoming = onSnapshot(incomingQuery, (snapshot) => {
+      const incoming: Record<string, any> = {};
+      snapshot.forEach(doc => {
+        incoming[doc.data().senderId] = { status: doc.data().status, id: doc.id };
+      });
+      setIncomingRequests(incoming);
       setIsLoading(false);
     }, (error) => {
       console.error(error);
@@ -78,13 +90,13 @@ export default function FriendsPage() {
     });
 
     // Listen to outgoing
-    const outgoingRef = ref(rtdb, `location_requests/${user.uid}/outgoing`);
-    const unsubOutgoing = onValue(outgoingRef, (snapshot) => {
-      if (snapshot.exists()) {
-        setOutgoingRequests(snapshot.val());
-      } else {
-        setOutgoingRequests({});
-      }
+    const outgoingQuery = query(collection(db, 'location_requests'), where('senderId', '==', user.uid));
+    const unsubOutgoing = onSnapshot(outgoingQuery, (snapshot) => {
+      const outgoing: Record<string, any> = {};
+      snapshot.forEach(doc => {
+        outgoing[doc.data().recipientId] = { status: doc.data().status, id: doc.id };
+      });
+      setOutgoingRequests(outgoing);
     });
 
     return () => {
@@ -95,34 +107,68 @@ export default function FriendsPage() {
 
   const handleSendRequest = async (recipientId: string) => {
     if (!user) return;
-    const updates: any = {};
-    
-    // Set outgoing for current user
-    updates[`location_requests/${user.uid}/outgoing/${recipientId}`] = { status: 'pending', timestamp: serverTimestamp() };
-    // Set incoming for recipient
-    updates[`location_requests/${recipientId}/incoming/${user.uid}`] = { status: 'pending', timestamp: serverTimestamp() };
-    
-    await update(ref(rtdb), updates);
+    await setDoc(doc(db, 'location_requests', `${user.uid}_${recipientId}`), {
+      senderId: user.uid,
+      recipientId: recipientId,
+      status: 'pending',
+      timestamp: serverTimestamp()
+    });
   };
 
   const handleRespondToRequest = async (senderId: string, response: 'accepted' | 'denied') => {
     if (!user) return;
-    const updates: any = {};
+    const reqId = `${senderId}_${user.uid}`;
+    await updateDoc(doc(db, 'location_requests', reqId), { status: response, timestamp: serverTimestamp() });
     
-    updates[`location_requests/${user.uid}/incoming/${senderId}`] = { status: response, timestamp: serverTimestamp() };
-    updates[`location_requests/${senderId}/outgoing/${user.uid}`] = { status: response, timestamp: serverTimestamp() };
+    if (response === 'accepted') {
+      await addDoc(collection(db, 'location_shares'), {
+        requesterId: senderId,
+        recipientId: user.uid,
+        status: 'active',
+        createdAt: serverTimestamp(),
+      });
+    }
+  };
+
+  const handleBlockUser = async (targetId: string) => {
+    if (!user) return;
+    const newBlocked = [...blockedUsers, targetId];
+    await setDoc(doc(db, 'users', user.uid), { blockedUsers: newBlocked }, { merge: true });
     
-    await update(ref(rtdb), updates);
+    // Also revoke active shares just in case
+    try {
+      const q1 = query(collection(db, 'location_shares'), where('recipientId', '==', user.uid), where('requesterId', '==', targetId), where('status', '==', 'active'));
+      const s1 = await getDocs(q1);
+      s1.forEach(async d => await updateDoc(doc(db, 'location_shares', d.id), { status: 'revoked' }));
+      
+      const q2 = query(collection(db, 'location_shares'), where('recipientId', '==', targetId), where('requesterId', '==', user.uid), where('status', '==', 'active'));
+      const s2 = await getDocs(q2);
+      s2.forEach(async d => await updateDoc(doc(db, 'location_shares', d.id), { status: 'revoked' }));
+    } catch(e) {}
+    setSelectedPerson(null);
+  };
+
+  const handleUnblockUser = async (targetId: string) => {
+    if (!user) return;
+    const newBlocked = blockedUsers.filter(id => id !== targetId);
+    await setDoc(doc(db, 'users', user.uid), { blockedUsers: newBlocked }, { merge: true });
+    setSelectedPerson(null);
   };
 
   const handleRevokeShare = async (recipientId: string) => {
     if (!user) return;
-    const updates: any = {};
+    const reqId = `${user.uid}_${recipientId}`;
+    const reqId2 = `${recipientId}_${user.uid}`;
     
-    updates[`location_requests/${user.uid}/outgoing/${recipientId}`] = { status: 'revoked', timestamp: serverTimestamp() };
-    updates[`location_requests/${recipientId}/incoming/${user.uid}`] = { status: 'revoked', timestamp: serverTimestamp() };
-    
-    await update(ref(rtdb), updates);
+    try { await updateDoc(doc(db, 'location_requests', reqId), { status: 'revoked', timestamp: serverTimestamp() }); } catch(e) {}
+    try { await updateDoc(doc(db, 'location_requests', reqId2), { status: 'revoked', timestamp: serverTimestamp() }); } catch(e) {}
+
+    // Find and revoke share in location_shares where I am sharing with them
+    const q = query(collection(db, 'location_shares'), where('recipientId', '==', user.uid), where('requesterId', '==', recipientId), where('status', '==', 'active'));
+    const snapshot = await getDocs(q);
+    snapshot.forEach(async (d) => {
+      await updateDoc(doc(db, 'location_shares', d.id), { status: 'revoked' });
+    });
   };
 
   const filteredUsers = allUsers.filter(u => 
@@ -402,6 +448,16 @@ export default function FriendsPage() {
                     <div>
                       <span className="block text-[15px] font-bold text-red-600">Revoke sharing with {selectedPerson.name.split(' ')[0]}</span>
                       <span className="block text-[13px] font-medium text-red-500/80 mt-0.5">They will no longer see your location</span>
+                    </div>
+                  </button>
+                  <button 
+                    onClick={() => handleBlockUser(selectedPerson.uid)}
+                    className="w-full flex items-center gap-3 bg-red-50/50 p-4 rounded-2xl active:bg-red-50 transition-colors text-left mt-3"
+                  >
+                    <AlertCircle size={20} className="text-red-500 shrink-0" strokeWidth={2.5} />
+                    <div>
+                      <span className="block text-[15px] font-bold text-red-600">Block {selectedPerson.name.split(' ')[0]}</span>
+                      <span className="block text-[13px] font-medium text-red-500/80 mt-0.5">They won&apos;t be able to request or view your location</span>
                     </div>
                   </button>
                 </div>

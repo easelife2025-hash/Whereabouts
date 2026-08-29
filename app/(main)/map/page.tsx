@@ -5,10 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useEffect, useState } from 'react';
 import { APIProvider, Map, AdvancedMarker, Pin, useMap } from '@vis.gl/react-google-maps';
-import { rtdb, db } from '@/lib/firebase';
-import { ref, onValue } from 'firebase/database';
+import { db } from '@/lib/firebase';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { doc, getDoc, collection, query, where, onSnapshot, writeBatch } from 'firebase/firestore';
 import Image from 'next/image';
 
 function MapController({ center }: { center: { lat: number; lng: number } | null }) {
@@ -61,10 +60,10 @@ export default function TrackingPage() {
         const userDoc = await getDoc(doc(db, 'users', uid));
         const userData = userDoc.exists() ? userDoc.data() : { name: 'Unknown' };
         
-        // 2. Listen to RTDB for these specific authorized users
-        const locRef = ref(rtdb, `user_locations/${uid}`);
-        const unsubRTDB = onValue(locRef, (locSnapshot) => {
-          const data = locSnapshot.val();
+        // 2. Listen to Firestore for these specific authorized users
+        const locRef = doc(db, 'user_locations', uid);
+        const unsubLoc = onSnapshot(locRef, (locSnapshot) => {
+          const data = locSnapshot.data();
           if (data && data.lat && data.lng) {
             newMarkersMap.set(uid, {
               uid,
@@ -86,9 +85,9 @@ export default function TrackingPage() {
             return prev;
           });
         }, (error) => {
-          console.error("RTDB listener error:", error);
+          console.error("Firestore listener error:", error);
         });
-        rtdbUnsubs.push(unsubRTDB);
+        rtdbUnsubs.push(unsubLoc);
       });
     }, (error) => {
       console.error("Firestore listener error:", error);
