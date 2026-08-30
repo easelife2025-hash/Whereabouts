@@ -8,9 +8,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { sendNotification } from '@/lib/notify';
 
 type SharedUser = {
   id: string;
+  requesterId: string;
   name: string;
   imgSeed: string;
   duration: string;
@@ -71,6 +73,7 @@ export default function SharingPermissionsPage() {
 
           activeShares.push({
             id: document.id,
+            requesterId: requesterId,
             name: userData.name || 'Unknown',
             imgSeed: userData.imgSeed || 'default',
             duration: durationStr,
@@ -94,9 +97,16 @@ export default function SharingPermissionsPage() {
     return () => unsub();
   }, [user]);
 
-  const handleRevoke = async (id: string) => {
+  const handleRevoke = async (id: string, requesterId: string) => {
     try {
       await updateDoc(doc(db, 'location_shares', id), { status: 'revoked' });
+      
+      sendNotification(
+        requesterId,
+        'Sharing Stopped',
+        `${user?.displayName || 'Someone'} stopped sharing their location with you`,
+        '/home'
+      );
     } catch (error) {
       console.error('Error revoking share:', error);
     }
@@ -107,6 +117,12 @@ export default function SharingPermissionsPage() {
       const batch = writeBatch(db);
       sharedUsers.forEach(u => {
         batch.update(doc(db, 'location_shares', u.id), { status: 'revoked' });
+        sendNotification(
+          u.requesterId,
+          'Sharing Stopped',
+          `${user?.displayName || 'Someone'} stopped sharing their location with you`,
+          '/home'
+        );
       });
       await batch.commit();
     } catch (error) {
@@ -194,7 +210,7 @@ export default function SharingPermissionsPage() {
                 </div>
 
                 <button 
-                  onClick={() => handleRevoke(user.id)}
+                  onClick={() => handleRevoke(user.id, user.requesterId)}
                   className="w-10 h-10 bg-white border border-zinc-200 rounded-full flex items-center justify-center text-zinc-400 hover:text-[#F9C300] active:bg-zinc-100 transition-colors shrink-0"
                   aria-label={`Revoke access for ${user.name}`}
                 >

@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { db } from '@/lib/firebase';
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { sendNotification } from '@/lib/notify';
 
 type UserProfile = {
   uid: string;
@@ -113,6 +114,13 @@ export default function FriendsPage() {
       status: 'pending',
       timestamp: serverTimestamp()
     });
+    
+    sendNotification(
+      recipientId,
+      'New Location Request',
+      `${profile?.name || user.displayName || 'Someone'} requested your location`,
+      '/requests'
+    );
   };
 
   const handleRespondToRequest = async (senderId: string, response: 'accepted' | 'denied') => {
@@ -127,6 +135,20 @@ export default function FriendsPage() {
         status: 'active',
         createdAt: serverTimestamp(),
       });
+      
+      sendNotification(
+        senderId,
+        'Request Accepted',
+        `${profile?.name || user.displayName || 'Someone'} is now sharing their location with you`,
+        '/home'
+      );
+    } else {
+      sendNotification(
+        senderId,
+        'Request Denied',
+        `${profile?.name || user.displayName || 'Someone'} denied your location request`,
+        '/people'
+      );
     }
   };
 
@@ -169,6 +191,13 @@ export default function FriendsPage() {
     snapshot.forEach(async (d) => {
       await updateDoc(doc(db, 'location_shares', d.id), { status: 'revoked' });
     });
+    
+    sendNotification(
+      recipientId,
+      'Sharing Stopped',
+      `${profile?.name || user.displayName || 'Someone'} stopped sharing their location with you`,
+      '/home'
+    );
   };
 
   const filteredUsers = allUsers.filter(u => 

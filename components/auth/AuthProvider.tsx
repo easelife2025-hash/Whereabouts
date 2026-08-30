@@ -1,8 +1,10 @@
 'use client';
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { doc, getDoc, setDoc, onSnapshot, updateDoc } from 'firebase/firestore';
+import { getToken, onMessage } from 'firebase/messaging';
+import { auth, db, getFirebaseMessaging } from '@/lib/firebase';
 import { useRouter, usePathname } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
@@ -11,6 +13,7 @@ export interface UserProfile {
   email: string;
   imgSeed: string;
   bio?: string;
+  fcmToken?: string;
   createdAt?: number;
 }
 
@@ -18,12 +21,14 @@ interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
   loading: boolean;
+  requestNotificationPermission: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   profile: null,
   loading: true,
+  requestNotificationPermission: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -34,6 +39,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
+
+  const requestNotificationPermission = async () => {
+    try {
+      if (typeof window === 'undefined' || !('Notification' in window)) return;
+      
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted' && user) {
+        const messaging = await getFirebaseMessaging();
+        if (messaging) {
+          const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+          if (vapidKey) {
+            const token = await getToken(messaging, { vapidKey });
+            if (token) {
+              const userRef = doc(db, 'users', user.uid);
+              await updateDoc(userRef, { fcmToken: token });
+            }
+          } else {
+            console.warn("NEXT_PUBLIC_FIREBASE_VAPID_KEY is missing. Cannot register FCM.");
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to request notification permission', err);
+    }
+  };
 
   useEffect(() => {
     let unsubscribeDB: (() => void) | undefined;
@@ -91,6 +121,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
         
         unsubscribeDB = () => listener();
+        
+        // Listen for foreground messages
+        getFirebaseMessaging().then((messaging) => {
+          if (messaging) {
+            onMessage(messaging, (payload) => {
+              console.log('Received foreground message:', payload);
+              // Optionally show a custom toast here
+            });
+          }
+        }).catch(console.error);
+
       } else {
         if (isMounted) {
           setProfile(null);
