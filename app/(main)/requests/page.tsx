@@ -8,7 +8,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { db } from '@/lib/firebase';
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
-import { sendNotification } from '@/lib/notify';
 
 
 type Request = {
@@ -94,13 +93,6 @@ export default function RequestsPage() {
       });
 
       await updateDoc(doc(db, 'location_requests', `${selectedRequest.id}_${user.uid}`), { status: 'denied', timestamp: serverTimestamp() });
-      
-      sendNotification(
-        selectedRequest.id,
-        'Request Denied',
-        `${profile?.name || user.displayName || 'Someone'} denied your location request`,
-        '/people'
-      );
     } catch (error) {
       console.error('Error denying request:', error);
     }
@@ -130,13 +122,6 @@ export default function RequestsPage() {
       });
 
       await updateDoc(doc(db, 'location_requests', `${selectedRequest.id}_${user.uid}`), { status: 'accepted', timestamp: serverTimestamp() });
-
-      sendNotification(
-        selectedRequest.id,
-        'Request Accepted',
-        `${profile?.name || user.displayName || 'Someone'} is now sharing their location with you`,
-        '/map'
-      );
 
     } catch (error) {
       console.error('Error accepting request:', error);

@@ -8,7 +8,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { db } from '@/lib/firebase';
 import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, writeBatch } from 'firebase/firestore';
-import { sendNotification } from '@/lib/notify';
 
 type SharedUser = {
   id: string;
@@ -100,13 +99,6 @@ export default function SharingPermissionsPage() {
   const handleRevoke = async (id: string, requesterId: string) => {
     try {
       await updateDoc(doc(db, 'location_shares', id), { status: 'revoked' });
-      
-      sendNotification(
-        requesterId,
-        'Sharing Stopped',
-        `${user?.displayName || 'Someone'} stopped sharing their location with you`,
-        '/home'
-      );
     } catch (error) {
       console.error('Error revoking share:', error);
     }
@@ -117,12 +109,6 @@ export default function SharingPermissionsPage() {
       const batch = writeBatch(db);
       sharedUsers.forEach(u => {
         batch.update(doc(db, 'location_shares', u.id), { status: 'revoked' });
-        sendNotification(
-          u.requesterId,
-          'Sharing Stopped',
-          `${user?.displayName || 'Someone'} stopped sharing their location with you`,
-          '/home'
-        );
       });
       await batch.commit();
     } catch (error) {
