@@ -271,7 +271,7 @@ export default function FriendsPage() {
                   {pendingIncoming.map((person) => (
                     <div key={person.uid} className="w-full flex items-center gap-4 p-4 bg-emerald-50 rounded-[1.5rem]">
                       <Image 
-                        src={person.photoURL || `https://api.dicebear.com/9.x/avataaars/svg?seed=${person.imgSeed}`} 
+                        src={person.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(person.name || 'User')}&background=F9C300&color=18181b`} 
                         alt={person.name} 
                         width={48} height={48} 
                         className="rounded-full object-cover shrink-0 border-2 border-white"
@@ -314,7 +314,7 @@ export default function FriendsPage() {
                     >
                       <div className="relative shrink-0">
                         <Image 
-                          src={person.photoURL || `https://api.dicebear.com/9.x/avataaars/svg?seed=${person.imgSeed}`} 
+                          src={person.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(person.name || 'User')}&background=F9C300&color=18181b`} 
                           alt={person.name} 
                           width={48} height={48} 
                           className="rounded-full object-cover"
@@ -346,7 +346,7 @@ export default function FriendsPage() {
                   {pendingOutgoing.map((person) => (
                     <div key={person.uid} className="w-full flex items-center gap-4 py-3 opacity-70">
                       <Image 
-                        src={person.photoURL || `https://api.dicebear.com/9.x/avataaars/svg?seed=${person.imgSeed}`} 
+                        src={person.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(person.name || 'User')}&background=F9C300&color=18181b`} 
                         alt={person.name} 
                         width={48} height={48} 
                         className="rounded-full object-cover shrink-0 grayscale"
@@ -373,7 +373,7 @@ export default function FriendsPage() {
                   {otherUsers.map((person) => (
                     <div key={person.uid} className="w-full flex items-center gap-4 py-3 text-left">
                       <Image 
-                        src={person.photoURL || `https://api.dicebear.com/9.x/avataaars/svg?seed=${person.imgSeed}`} 
+                        src={person.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(person.name || 'User')}&background=F9C300&color=18181b`} 
                         alt={person.name} 
                         width={48} height={48} 
                         className="rounded-full object-cover opacity-60 shrink-0"
@@ -427,7 +427,7 @@ export default function FriendsPage() {
               <div className="px-6 pb-8 pt-2 overflow-y-auto">
                 <div className="flex flex-col items-center mb-8">
                   <Image 
-                    src={selectedPerson.photoURL || `https://api.dicebear.com/9.x/avataaars/svg?seed=${selectedPerson.imgSeed}`} 
+                    src={selectedPerson.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedPerson.name || 'User')}&background=F9C300&color=18181b`} 
                     alt={selectedPerson.name} 
                     width={100} height={100} 
                     className="rounded-full object-cover mb-4 border-4 border-white shadow-sm"

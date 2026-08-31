@@ -116,7 +116,6 @@ export default function ProfilePage() {
   ];
 
   const displayName = profile?.name || user?.displayName || 'User';
-  const imgSeed = profile?.imgSeed || 'me';
   const bio = profile?.bio || 'No bio provided.';
 
   return (
@@ -126,7 +125,7 @@ export default function ProfilePage() {
         <div className="relative mb-5 group">
           <div className="relative w-[104px] h-[104px] rounded-full overflow-hidden border-4 border-white shadow-md bg-zinc-100">
             <Image 
-              src={profile?.photoURL || `https://api.dicebear.com/9.x/avataaars/svg?seed=${imgSeed}`} 
+              src={profile?.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.name || user?.displayName || 'User')}&background=F9C300&color=18181b`} 
               alt={displayName} 
               fill
               className="object-cover"

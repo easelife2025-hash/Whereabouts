@@ -11,7 +11,6 @@ import { Loader2 } from 'lucide-react';
 export interface UserProfile {
   name: string;
   email: string;
-  imgSeed: string;
   photoURL?: string;
   bio?: string;
   fcmToken?: string;
@@ -88,14 +87,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setDoc(userDocRef, {
               name: authUser.displayName || 'Unknown User',
               email: authUser.email || '',
-              imgSeed: Math.floor(Math.random() * 1000).toString(),
               createdAt: Date.now()
             }).catch(console.error);
 
             setProfile({
               name: authUser.displayName || 'Unknown User',
               email: authUser.email || '',
-              imgSeed: Math.floor(Math.random() * 1000).toString(),
               createdAt: Date.now()
             });
           } else {
@@ -109,7 +106,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setProfile({
             name: authUser.displayName || 'Unknown User',
             email: authUser.email || '',
-            imgSeed: Math.floor(Math.random() * 1000).toString(),
             createdAt: Date.now()
           });
         }

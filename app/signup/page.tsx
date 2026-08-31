@@ -76,7 +76,6 @@ export default function SignUpPage() {
         await setDoc(userRef, {
           name: name.trim(),
           email: userCredential.user.email,
-          imgSeed: Math.floor(Math.random() * 1000).toString(),
           createdAt: Date.now()
         });
         router.push('/home');

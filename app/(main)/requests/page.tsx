@@ -155,7 +155,7 @@ export default function RequestsPage() {
             {requests.map(req => (
               <div key={req.id} className="py-4 border-b border-zinc-100 last:border-0 flex items-center gap-4">
                 <Image 
-                  src={req.photoURL || `https://api.dicebear.com/9.x/avataaars/svg?seed=${req.imgSeed}`} 
+                  src={req.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(req.name || 'User')}&background=F9C300&color=18181b`} 
                   alt={req.name}
                   width={48} 
                   height={48} 
@@ -212,7 +212,7 @@ export default function RequestsPage() {
                       className="flex flex-col items-center text-center"
                     >
                       <Image 
-                        src={selectedRequest.photoURL || `https://api.dicebear.com/9.x/avataaars/svg?seed=${selectedRequest.imgSeed}`} 
+                        src={selectedRequest.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedRequest.name || 'User')}&background=F9C300&color=18181b`} 
                         alt={selectedRequest.name}
                         width={80} 
                         height={80} 

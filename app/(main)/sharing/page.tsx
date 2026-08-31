@@ -175,7 +175,7 @@ export default function SharingPermissionsPage() {
               >
                 <div className="relative shrink-0">
                   <Image 
-                    src={user.photoURL || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.imgSeed}`} 
+                    src={user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=F9C300&color=18181b`} 
                     alt={user.name}
                     width={52} 
                     height={52} 
