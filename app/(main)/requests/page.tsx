@@ -14,6 +14,7 @@ type Request = {
   id: string;
   name: string;
   imgSeed: string;
+  photoURL?: string;
   time: string;
   timestamp: number;
 };
@@ -154,7 +155,7 @@ export default function RequestsPage() {
             {requests.map(req => (
               <div key={req.id} className="py-4 border-b border-zinc-100 last:border-0 flex items-center gap-4">
                 <Image 
-                  src={`https://picsum.photos/seed/${req.imgSeed}/100`} 
+                  src={req.photoURL || `https://api.dicebear.com/9.x/avataaars/svg?seed=${req.imgSeed}`} 
                   alt={req.name}
                   width={48} 
                   height={48} 
@@ -211,7 +212,7 @@ export default function RequestsPage() {
                       className="flex flex-col items-center text-center"
                     >
                       <Image 
-                        src={`https://picsum.photos/seed/${selectedRequest.imgSeed}/150`} 
+                        src={selectedRequest.photoURL || `https://api.dicebear.com/9.x/avataaars/svg?seed=${selectedRequest.imgSeed}`} 
                         alt={selectedRequest.name}
                         width={80} 
                         height={80} 

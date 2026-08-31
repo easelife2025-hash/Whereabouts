@@ -14,6 +14,7 @@ type SharedUser = {
   requesterId: string;
   name: string;
   imgSeed: string;
+  photoURL?: string;
   duration: string;
   remainingTime: string | null; // null if 'Until stopped'
 };
@@ -72,7 +73,7 @@ export default function SharingPermissionsPage() {
 
           activeShares.push({
             id: document.id,
-            requesterId: requesterId,
+            requesterId: data.requesterId,
             name: userData.name || 'Unknown',
             imgSeed: userData.imgSeed || 'default',
             duration: durationStr,
@@ -174,7 +175,7 @@ export default function SharingPermissionsPage() {
               >
                 <div className="relative shrink-0">
                   <Image 
-                    src={`https://picsum.photos/seed/${user.imgSeed}/100`} 
+                    src={user.photoURL || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user.imgSeed}`} 
                     alt={user.name}
                     width={52} 
                     height={52} 

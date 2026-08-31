@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getDatabase } from 'firebase/database';
+import { getStorage } from 'firebase/storage';
 import { getFunctions } from 'firebase/functions';
 import { getMessaging, isSupported } from 'firebase/messaging';
 
@@ -20,6 +21,7 @@ const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const rtdb = getDatabase(app);
+export const storage = getStorage(app);
 export const functions = getFunctions(app);
 
 // Initialize messaging only in the browser and if supported

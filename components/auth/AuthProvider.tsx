@@ -12,6 +12,7 @@ export interface UserProfile {
   name: string;
   email: string;
   imgSeed: string;
+  photoURL?: string;
   bio?: string;
   fcmToken?: string;
   createdAt?: number;
@@ -173,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, loading, pathname, router]);
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading }}>
+    <AuthContext.Provider value={{ user, profile, loading, requestNotificationPermission }}>
       {children}
       {loading && (
         <div className="absolute inset-0 z-[9999] flex h-full w-full items-center justify-center bg-[#F9C300]">

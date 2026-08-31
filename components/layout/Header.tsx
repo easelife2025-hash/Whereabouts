@@ -53,7 +53,7 @@ export default function Header() {
         <div className="flex items-center text-zinc-900 pr-2">
           <div className="w-8 h-8 rounded-full overflow-hidden border border-zinc-200 cursor-pointer active:opacity-70 transition-opacity">
             <Image 
-              src={`https://picsum.photos/seed/${imgSeed}/100`} 
+              src={profile?.photoURL || `https://api.dicebear.com/9.x/avataaars/svg?seed=${imgSeed}`} 
               alt="Profile" 
               width={32} 
               height={32} 
@@ -88,7 +88,7 @@ export default function Header() {
                 <div className="px-6 py-8 border-b border-zinc-100 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <Image 
-                      src={`https://picsum.photos/seed/${imgSeed}/100`} 
+                      src={profile?.photoURL || `https://api.dicebear.com/9.x/avataaars/svg?seed=${imgSeed}`} 
                       alt="Profile" 
                       width={56} 
                       height={56} 
