@@ -66,7 +66,7 @@ export default function ProfilePage() {
       };
       reader.readAsDataURL(file);
     } catch (error) {
-      console.error('Error uploading photo:', error);
+      console.error('Error uploading photo:', "error occurred");
       setIsUploadingPhoto(false);
     }
   };
@@ -77,7 +77,7 @@ export default function ProfilePage() {
       await signOut(auth);
       router.push('/login');
     } catch (error) {
-      console.error('Error signing out', error);
+      console.error('Error signing out', "error occurred");
     }
   };
 
@@ -92,7 +92,7 @@ export default function ProfilePage() {
       });
       setIsEditing(false);
     } catch (error) {
-      console.error('Error updating profile:', error);
+      console.error('Error updating profile:', "error occurred");
       alert('Failed to save profile changes.');
     } finally {
       setIsSaving(false);

@@ -66,10 +66,10 @@ export function LocationTracker() {
             lng: position.coords.longitude,
             timestamp: serverTimestamp(),
             viewers: activeViewers
-          }).catch(console.error);
+          }).catch(err => console.error(String((err as any)?.message || err || 'Error occurred')));
         },
         (error) => {
-          console.error("Geolocation error:", error);
+          console.error("Geolocation error:", "error occurred");
         },
         {
           enableHighAccuracy: true,
@@ -85,7 +85,7 @@ export function LocationTracker() {
         navigator.geolocation.clearWatch(watchId);
       }
       if (user && hasActiveShares) {
-        remove(ref(rtdb, `user_locations/${user.uid}`)).catch(console.error);
+        remove(ref(rtdb, `user_locations/${user.uid}`)).catch(err => console.error(String((err as any)?.message || err || 'Error occurred')));
       }
     };
   }, [user, hasActiveShares, activeViewers]);

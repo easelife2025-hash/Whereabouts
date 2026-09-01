@@ -28,7 +28,7 @@ export default function SettingsPage() {
       await updateDoc(userDocRef, { name: localName.trim() });
       setLocalName(null); // Once updated, profile.name will reflect the change
     } catch (error) {
-      console.error('Failed to update name:', error);
+      console.error('Failed to update name:', "error occurred");
       setLocalName(null); // Revert on failure
     } finally {
       setIsUpdating(false);

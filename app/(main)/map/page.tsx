@@ -89,12 +89,12 @@ export default function TrackingPage() {
             return prev;
           });
         }, (error) => {
-          console.error("Firestore listener error:", error);
+          console.error("Firestore listener error:", "error occurred");
         });
         rtdbUnsubs.push(unsubLoc);
       });
     }, (error) => {
-      console.error("Firestore listener error:", error);
+      console.error("Firestore listener error:", "error occurred");
     });
 
     return () => {
@@ -132,7 +132,7 @@ export default function TrackingPage() {
       });
       await batch.commit();
     } catch (err) {
-      console.error("Error stopping shares", err);
+      console.error("Error stopping shares", "error occurred");
     }
   };
 

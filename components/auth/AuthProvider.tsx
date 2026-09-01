@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (err) {
-      console.error('Failed to request notification permission', err);
+      console.error('Failed to request notification permission', "error occurred");
     }
   };
 
@@ -88,7 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               name: authUser.displayName || 'Unknown User',
               email: authUser.email || '',
               createdAt: Date.now()
-            }).catch(console.error);
+            }).catch(err => console.error(String((err as any)?.message || err || 'Error occurred')));
 
             setProfile({
               name: authUser.displayName || 'Unknown User',
@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } catch (err: any) {
           if (err?.code !== 'failed-precondition' && err?.code !== 'unavailable' && !err?.message?.includes('offline')) {
-            console.error("Error setting up user profile:", err);
+            console.error("Error setting up user profile:", "error occurred");
           }
           // Fallback profile if DB fetch fails
           setProfile({
@@ -127,7 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // Optionally show a custom toast here
             });
           }
-        }).catch(console.error);
+        }).catch(err => console.error(String((err as any)?.message || err || 'Error occurred')));
 
       } else {
         if (isMounted) {

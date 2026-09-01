@@ -95,7 +95,7 @@ export default function RequestsPage() {
 
       await updateDoc(doc(db, 'location_requests', `${selectedRequest.id}_${user.uid}`), { status: 'denied', timestamp: serverTimestamp() });
     } catch (error) {
-      console.error('Error denying request:', error);
+      console.error('Error denying request:', "error occurred");
     }
 
     closeRequest();
@@ -125,7 +125,7 @@ export default function RequestsPage() {
       await updateDoc(doc(db, 'location_requests', `${selectedRequest.id}_${user.uid}`), { status: 'accepted', timestamp: serverTimestamp() });
 
     } catch (error) {
-      console.error('Error accepting request:', error);
+      console.error('Error accepting request:', "error occurred");
     }
     
     closeRequest();

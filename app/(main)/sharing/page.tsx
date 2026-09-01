@@ -90,7 +90,7 @@ export default function SharingPermissionsPage() {
         expiredDocs.forEach(id => {
           batch.update(doc(db, 'location_shares', id), { status: 'expired' });
         });
-        batch.commit().catch(console.error);
+        batch.commit().catch(err => console.error(String((err as any)?.message || err || 'Error occurred')));
       }
     });
 
@@ -101,7 +101,7 @@ export default function SharingPermissionsPage() {
     try {
       await updateDoc(doc(db, 'location_shares', id), { status: 'revoked' });
     } catch (error) {
-      console.error('Error revoking share:', error);
+      console.error('Error revoking share:', "error occurred");
     }
   };
 
@@ -113,7 +113,7 @@ export default function SharingPermissionsPage() {
       });
       await batch.commit();
     } catch (error) {
-      console.error('Error stopping all shares:', error);
+      console.error('Error stopping all shares:', "error occurred");
     }
   };
 

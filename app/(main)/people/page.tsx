@@ -51,7 +51,7 @@ export default function FriendsPage() {
         });
         setAllUsers(usersList);
       } catch (error) {
-        console.error("Error fetching users:", error);
+        console.error("Error fetching users:", "error occurred");
         setIsError(true);
       }
     };
@@ -85,7 +85,7 @@ export default function FriendsPage() {
       setIncomingRequests(incoming);
       setIsLoading(false);
     }, (error) => {
-      console.error(error);
+      console.error("error occurred");
       setIsError(true);
       setIsLoading(false);
     });
