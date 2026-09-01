@@ -8,7 +8,7 @@ import { ref, set, serverTimestamp, remove } from 'firebase/database';
 export function LocationTracker() {
   const { user } = useAuth();
   const [hasActiveShares, setHasActiveShares] = useState(false);
-  const [activeViewers, setActiveViewers] = useState<string[]>([]);
+  const [activeViewers, setActiveViewers] = useState<Record<string, boolean>>({});
 
   // 1. Monitor active shares
   useEffect(() => {
@@ -23,7 +23,7 @@ export function LocationTracker() {
     const unsub = onSnapshot(q, (snapshot) => {
       const now = new Date();
       let hasAny = false;
-      const viewers: string[] = [];
+      const viewers: Record<string, boolean> = {};
       
       for (const doc of snapshot.docs) {
         const data = doc.data();
@@ -34,9 +34,13 @@ export function LocationTracker() {
             isExpired = true;
           }
         }
-        if (!isExpired) {
+        
+        // Ensure status is active and not expired, revoked, blocked, or denied
+        if (!isExpired && data.status === 'active') {
           hasAny = true;
-          if (data.requesterId && !viewers.includes(data.requesterId)) viewers.push(data.requesterId);
+          if (data.requesterId) {
+            viewers[data.requesterId] = true;
+          }
         }
       }
       
