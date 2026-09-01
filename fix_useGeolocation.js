@@ -1,32 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
+const fs = require('fs');
+let content = fs.readFileSync('hooks/useGeolocation.ts', 'utf8');
 
-export type LocationData = {
-  lat: number;
-  lng: number;
-  accuracy: number;
-  timestamp: number;
-};
-
-export type GeolocationError = 
-  | 'Permission denied'
-  | 'GPS disabled'
-  | 'Location unavailable'
-  | 'Network errors'
-  | 'Geolocation not supported'
-  | null;
-
-export function useGeolocation() {
-  const [location, setLocation] = useState<LocationData | null>(null);
-  const [error, setError] = useState<GeolocationError>(null);
-  const [isTracking, setIsTracking] = useState(false);
-  const [isRequesting, setIsRequesting] = useState(false);
-
-  const stopTracking = useCallback(() => {
-    setIsTracking(false);
-    setIsRequesting(false);
-  }, []);
-
-const requestPermissionAndTrack = useCallback(() => {
+const replacement = `
+  const requestPermissionAndTrack = useCallback(() => {
     if (typeof window === 'undefined') return;
     
     if (!('geolocation' in navigator)) {
@@ -85,6 +61,18 @@ const requestPermissionAndTrack = useCallback(() => {
       }
     };
   }, [isTracking]);
+`;
 
-  return { location, error, isTracking, isRequesting, requestPermissionAndTrack, stopTracking };
+const oldStart = `  const requestPermissionAndTrack = useCallback(() => {`;
+const oldEnd = `  }, [isTracking]);`;
+
+const startIndex = content.indexOf(oldStart);
+const endIndex = content.indexOf(oldEnd) + oldEnd.length;
+
+if (startIndex !== -1 && endIndex !== -1) {
+  content = content.substring(0, startIndex) + replacement.trim() + content.substring(endIndex);
+  fs.writeFileSync('hooks/useGeolocation.ts', content);
+  console.log("Updated hooks/useGeolocation.ts");
+} else {
+  console.log("Could not find the block to replace.");
 }

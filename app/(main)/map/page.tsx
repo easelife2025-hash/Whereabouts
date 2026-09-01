@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useEffect, useState } from 'react';
 import { APIProvider, Map, AdvancedMarker, Pin, useMap } from '@vis.gl/react-google-maps';
-import { db } from '@/lib/firebase';
+import { db, rtdb } from '@/lib/firebase';
+import { ref, onValue, off } from 'firebase/database';
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { useAuth } from '@/components/auth/AuthProvider';
 import Image from 'next/image';
@@ -81,6 +82,9 @@ export default function TrackingPage() {
           setSelectedUser((prev: any) => {
             if (prev && !newMarkersMap.has(prev.uid)) {
               return null;
+            }
+            if (prev && newMarkersMap.has(prev.uid)) {
+              return newMarkersMap.get(prev.uid);
             }
             return prev;
           });

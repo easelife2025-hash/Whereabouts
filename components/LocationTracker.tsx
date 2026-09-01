@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
-import { db } from '@/lib/firebase';
-import { collection, doc, getDoc, getDocs, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { db, rtdb } from '@/lib/firebase';
+import { collection, doc, getDoc, getDocs, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp as firestoreServerTimestamp, writeBatch } from 'firebase/firestore';
+import { ref, set, serverTimestamp, remove } from 'firebase/database';
 
 export function LocationTracker() {
   const { user } = useAuth();
@@ -55,7 +56,8 @@ export function LocationTracker() {
       watchId = navigator.geolocation.watchPosition(
         (position) => {
           if (!isActive) return;
-          setDoc(doc(db, 'user_locations', user.uid), {
+          const locRef = ref(rtdb, `user_locations/${user.uid}`);
+          set(locRef, {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
             timestamp: serverTimestamp(),
@@ -79,7 +81,7 @@ export function LocationTracker() {
         navigator.geolocation.clearWatch(watchId);
       }
       if (user && hasActiveShares) {
-        deleteDoc(doc(db, 'user_locations', user.uid)).catch(console.error);
+        remove(ref(rtdb, `user_locations/${user.uid}`)).catch(console.error);
       }
     };
   }, [user, hasActiveShares, activeViewers]);

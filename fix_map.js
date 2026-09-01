@@ -1,32 +1,16 @@
 const fs = require('fs');
 let content = fs.readFileSync('app/(main)/map/page.tsx', 'utf8');
 
-// 1. Change RTDB imports to Firestore where appropriate
-content = content.replace("import { rtdb, db } from '@/lib/firebase';", "import { db } from '@/lib/firebase';");
-content = content.replace("import { ref, onValue } from 'firebase/database';", "import { onSnapshot, doc } from 'firebase/firestore';");
+// Add rtdb import
+content = content.replace(
+  /import { db } from '@\/lib\/firebase';/,
+  "import { db, rtdb } from '@/lib/firebase';\nimport { ref, onValue, off } from 'firebase/database';"
+);
 
-// 2. Replace RTDB fetch with Firestore fetch
-const RTDB_FETCH = `        const locRef = ref(rtdb, \`user_locations/\${uid}\`);
-        const unsubRTDB = onValue(locRef, (locSnapshot) => {
-          const data = locSnapshot.val();
-          if (data && data.lat && data.lng) {
-            newMarkersMap.set(uid, {
-              uid,
-              name: userData.name,
-              lat: data.lat,
-              lng: data.lng,
-              timestamp: data.timestamp
-            });
-          } else {
-            newMarkersMap.delete(uid);
-          }
-          // Convert map to array to trigger re-render
-          setAuthorizedMarkers(Array.from(newMarkersMap.values()));
-        });
-        
-        rtdbUnsubs.push(unsubRTDB);`;
-
-const FIRESTORE_FETCH = `        const locRef = doc(db, 'user_locations', uid);
+// Replace the Firestore onSnapshot with RTDB onValue
+const oldFirestoreCode = `
+        // 2. Listen to Firestore for these specific authorized users
+        const locRef = doc(db, 'user_locations', uid);
         const unsubLoc = onSnapshot(locRef, (locSnapshot) => {
           const data = locSnapshot.data();
           if (data && data.lat && data.lng) {
@@ -37,18 +21,56 @@ const FIRESTORE_FETCH = `        const locRef = doc(db, 'user_locations', uid);
               lng: data.lng,
               timestamp: data.timestamp
             });
-          } else {
+          } else { 
             newMarkersMap.delete(uid);
           }
-          setAuthorizedMarkers(Array.from(newMarkersMap.values()));
-        }, (err) => {
-          console.error("Error reading location:", err);
-          newMarkersMap.delete(uid);
-          setAuthorizedMarkers(Array.from(newMarkersMap.values()));
+          // Update state with new array
+          const newMarkers = Array.from(newMarkersMap.values());
+          setAuthorizedMarkers(newMarkers);
+          setSelectedUser((prev: any) => {
+            if (prev && !newMarkersMap.has(prev.uid)) {
+              return null;
+            }
+            return prev;
+          });
+        }, (error) => {
+          console.error("Firestore listener error:", error);
         });
-        
-        rtdbUnsubs.push(unsubLoc);`;
+        rtdbUnsubs.push(unsubLoc);
+`;
 
-content = content.replace(RTDB_FETCH, FIRESTORE_FETCH);
+const newRTDBCode = `
+        // 2. Listen to RTDB for these specific authorized users
+        const locRef = ref(rtdb, \`user_locations/\${uid}\`);
+        const listener = onValue(locRef, (snapshot) => {
+          const data = snapshot.val();
+          if (data && data.lat && data.lng) {
+            newMarkersMap.set(uid, {
+              uid,
+              name: userData.name,
+              lat: data.lat,
+              lng: data.lng,
+              timestamp: data.timestamp
+            });
+          } else { 
+            newMarkersMap.delete(uid);
+          }
+          // Update state with new array
+          const newMarkers = Array.from(newMarkersMap.values());
+          setAuthorizedMarkers(newMarkers);
+          setSelectedUser((prev: any) => {
+            if (prev && !newMarkersMap.has(prev.uid)) {
+              return null;
+            }
+            return prev;
+          });
+        }, (error) => {
+          console.error("RTDB listener error:", error);
+        });
+        rtdbUnsubs.push(() => off(locRef, 'value', listener));
+`;
+
+content = content.replace(oldFirestoreCode.trim(), newRTDBCode.trim());
 
 fs.writeFileSync('app/(main)/map/page.tsx', content);
+console.log("Updated app/(main)/map/page.tsx");
