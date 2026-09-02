@@ -5,11 +5,19 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { MapPin, ShieldCheck, Users, ArrowRight, Map } from 'lucide-react';
 
+import { useAuth } from '@/components/auth/AuthProvider';
+
 export default function OnboardingPage() {
   const [step, setStep] = useState(0); // 0 = Splash, 1-3 = Onboarding
   const router = useRouter();
+  const { user, isLoading } = useAuth();
 
   useEffect(() => {
+    if (isLoading) return;
+    if (user) {
+      router.push('/home');
+      return;
+    }
     // Splash screen timer
     if (step === 0) {
       const timer = setTimeout(() => {
@@ -17,7 +25,7 @@ export default function OnboardingPage() {
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [step]);
+  }, [step, user, isLoading, router]);
 
   const completeOnboarding = () => {
     router.push('/signup');

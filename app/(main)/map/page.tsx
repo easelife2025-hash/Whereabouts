@@ -21,7 +21,46 @@ function MapController({ center }: { center: { lat: number; lng: number } | null
   return null;
 }
 
+
+function AnimatedMarker({ marker, onClick }: { marker: any; onClick: () => void }) {
+  const [pos, setPos] = useState({ lat: marker.lat, lng: marker.lng });
+
+  useEffect(() => {
+    let start = pos;
+    let end = { lat: marker.lat, lng: marker.lng };
+    if (start.lat === end.lat && start.lng === end.lng) return;
+
+    let startTime = performance.now();
+    let duration = 1000; // 1 second animation
+
+    let frameId: number;
+    const animate = (time: number) => {
+      let progress = (time - startTime) / duration;
+      if (progress > 1) progress = 1;
+      // Easing function (easeOutQuad)
+      const easeProgress = progress * (2 - progress);
+      setPos({
+        lat: start.lat + (end.lat - start.lat) * easeProgress,
+        lng: start.lng + (end.lng - start.lng) * easeProgress
+      });
+      if (progress < 1) {
+        frameId = requestAnimationFrame(animate);
+      }
+    };
+    frameId = requestAnimationFrame(animate);
+    
+    return () => cancelAnimationFrame(frameId);
+  }, [marker.lat, marker.lng]);
+
+  return (
+    <AdvancedMarker position={pos} onClick={onClick}>
+      <Pin background={'#10b981'} borderColor={'#059669'} glyphColor={'#ffffff'} scale={1.2} />
+    </AdvancedMarker>
+  );
+}
+
 export default function TrackingPage() {
+
   const router = useRouter();
   const { user } = useAuth();
   const { location, error, isTracking, isRequesting, requestPermissionAndTrack, stopTracking } = useGeolocation();
@@ -61,17 +100,17 @@ export default function TrackingPage() {
         const userDoc = await getDoc(doc(db, 'users', uid));
         const userData = userDoc.exists() ? userDoc.data() : { name: 'Unknown' };
         
-        // 2. Listen to Firestore for these specific authorized users
-        const locRef = doc(db, 'user_locations', uid);
-        const unsubLoc = onSnapshot(locRef, (locSnapshot) => {
-          const data = locSnapshot.data();
+        // 2. Listen to RTDB for these specific authorized users
+        const locRef = ref(rtdb, 'user_locations/' + uid);
+        const handleValue = (locSnapshot) => {
+          const data = locSnapshot.val();
           if (data && data.lat && data.lng) {
             newMarkersMap.set(uid, {
               uid,
               name: userData.name,
               lat: data.lat,
               lng: data.lng,
-              timestamp: data.timestamp
+              timestamp: data.timestamp || data.updatedAt
             });
           } else {
              newMarkersMap.delete(uid);
@@ -79,7 +118,7 @@ export default function TrackingPage() {
           // Update state with new array
           const newMarkers = Array.from(newMarkersMap.values());
           setAuthorizedMarkers(newMarkers);
-          setSelectedUser((prev: any) => {
+          setSelectedUser((prev) => {
             if (prev && !newMarkersMap.has(prev.uid)) {
               return null;
             }
@@ -88,10 +127,11 @@ export default function TrackingPage() {
             }
             return prev;
           });
-        }, (error) => {
-          console.error("Firestore listener error:", "error occurred");
+        };
+        onValue(locRef, handleValue, (error) => {
+          console.error('RTDB listener error:', error);
         });
-        rtdbUnsubs.push(unsubLoc);
+        rtdbUnsubs.push(() => off(locRef, 'value', handleValue));
       });
     }, (error) => {
       console.error("Firestore listener error:", "error occurred");
@@ -168,13 +208,11 @@ export default function TrackingPage() {
 
             {/* Authorized Persons Markers */}
             {authorizedMarkers.map((marker) => (
-              <AdvancedMarker 
-                key={marker.uid} 
-                position={{ lat: marker.lat, lng: marker.lng }}
+              <AnimatedMarker 
+                key={marker.uid}
+                marker={marker}
                 onClick={() => setSelectedUser(marker)}
-              >
-                <Pin background={'#10b981'} borderColor={'#059669'} glyphColor={'#ffffff'} scale={1.2} />
-              </AdvancedMarker>
+              />
             ))}
           </Map>
         </APIProvider>

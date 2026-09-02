@@ -64,7 +64,9 @@ export function LocationTracker() {
           set(locRef, {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
             timestamp: serverTimestamp(),
+            updatedAt: serverTimestamp(),
             viewers: activeViewers
           }).catch(err => console.error(String((err as any)?.message || err || 'Error occurred')));
         },
