@@ -10,10 +10,10 @@ import { useAuth } from '@/components/auth/AuthProvider';
 export default function OnboardingPage() {
   const [step, setStep] = useState(0); // 0 = Splash, 1-3 = Onboarding
   const router = useRouter();
-  const { user, isLoading } = useAuth();
+  const { user, loading } = useAuth();
 
   useEffect(() => {
-    if (isLoading) return;
+    if (loading) return;
     if (user) {
       router.push('/home');
       return;
@@ -25,7 +25,7 @@ export default function OnboardingPage() {
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [step, user, isLoading, router]);
+  }, [step, user, loading, router]);
 
   const completeOnboarding = () => {
     router.push('/signup');

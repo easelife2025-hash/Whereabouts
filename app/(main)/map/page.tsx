@@ -6,7 +6,7 @@ import { useGeolocation } from '@/hooks/useGeolocation';
 import { useEffect, useState } from 'react';
 import { APIProvider, Map, AdvancedMarker, Pin, useMap } from '@vis.gl/react-google-maps';
 import { db, rtdb } from '@/lib/firebase';
-import { ref, onValue, off } from 'firebase/database';
+import { ref, onValue, off, DataSnapshot } from 'firebase/database';
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { useAuth } from '@/components/auth/AuthProvider';
 import Image from 'next/image';
@@ -59,14 +59,17 @@ function AnimatedMarker({ marker, onClick }: { marker: any; onClick: () => void 
   );
 }
 
+type OutboundShare = { id: string };
+type MarkerData = { uid: string; name: string; lat: number; lng: number; timestamp: number; };
+
 export default function TrackingPage() {
 
   const router = useRouter();
   const { user } = useAuth();
   const { location, error, isTracking, isRequesting, requestPermissionAndTrack, stopTracking } = useGeolocation();
-  const [authorizedMarkers, setAuthorizedMarkers] = useState<any[]>([]);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [outboundShares, setOutboundShares] = useState<any[]>([]);
+  const [authorizedMarkers, setAuthorizedMarkers] = useState<MarkerData[]>([]);
+  const [selectedUser, setSelectedUser] = useState<MarkerData | null>(null);
+  const [outboundShares, setOutboundShares] = useState<OutboundShare[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -93,7 +96,7 @@ export default function TrackingPage() {
         return;
       }
 
-      const newMarkersMap = new globalThis.Map<string, any>();
+      const newMarkersMap = new globalThis.Map<string, MarkerData>();
       
       authorizedIds.forEach(async (uid) => {
         // Fetch user info just once
@@ -102,7 +105,7 @@ export default function TrackingPage() {
         
         // 2. Listen to RTDB for these specific authorized users
         const locRef = ref(rtdb, 'user_locations/' + uid);
-        const handleValue = (locSnapshot) => {
+        const handleValue = (locSnapshot: DataSnapshot) => {
           const data = locSnapshot.val();
           if (data && data.lat && data.lng) {
             newMarkersMap.set(uid, {
@@ -123,7 +126,7 @@ export default function TrackingPage() {
               return null;
             }
             if (prev && newMarkersMap.has(prev.uid)) {
-              return newMarkersMap.get(prev.uid);
+              return newMarkersMap.get(prev.uid) || null;
             }
             return prev;
           });
