@@ -1,38 +1,12 @@
-'use client';
+const fs = require('fs');
+let content = fs.readFileSync('app/(main)/home/page.tsx', 'utf8');
 
-import { Outfit } from 'next/font/google';
-import { MapPin, UserPlus, ShieldCheck, Activity, ChevronRight, Inbox } from 'lucide-react';
-import Image from 'next/image';
-import Link from 'next/link';
-import { useAuth } from '@/components/auth/AuthProvider';
-import { useState, useEffect } from 'react';
-import { db } from '@/lib/firebase';
-import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';
+const newImports = `import { db } from '@/lib/firebase';
+import { collection, query, where, onSnapshot, getDoc, doc } from 'firebase/firestore';`;
 
-const outfit = Outfit({ subsets: ['latin'] });
+content = content.replace(/import \{ useState, useEffect \} from 'react';/, `import { useState, useEffect } from 'react';\n${newImports}`);
 
-export default function HomePage() {
-  
-  const { user, profile } = useAuth();
-  const [greeting, setGreeting] = useState('Hello');
-
-  useEffect(() => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setGreeting('Good morning');
-    } else if (hour >= 12 && hour < 16) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setGreeting('Good afternoon');
-    } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setGreeting('Good evening');
-    }
-  }, []);
-
-
-  // Get first name from profile or user
-    const [activeShares, setActiveShares] = useState<any[]>([]);
+const stateLogic = `  const [activeShares, setActiveShares] = useState<any[]>([]);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [recentPeople, setRecentPeople] = useState<any[]>([]);
 
@@ -79,29 +53,11 @@ export default function HomePage() {
        unsubReqs();
        unsubShares();
     }
-  }, [user]);
-  // Get first name from profile or user
-  const displayName = profile?.name || user?.displayName || 'User';
-  const firstName = displayName.split(' ')[0];
+  }, [user]);`;
 
-  return (
-    <div className="flex flex-col flex-1 bg-white pb-20">
-      <div className="px-6 py-6 pb-2">
-        <div className="flex justify-between items-start">
-          <div>
-            <h2 className={`text-[28px] font-bold text-zinc-900 tracking-tight leading-tight ${outfit.className}`}>{greeting},</h2>
-            <h2 className={`text-[28px] font-bold text-zinc-400 tracking-tight leading-tight ${outfit.className}`}>{firstName}.</h2>
-          </div>
-          <button className="w-11 h-11 bg-yellow-50 rounded-full flex items-center justify-center text-[#F9C300] active:scale-95 transition-transform">
-            <UserPlus size={20} strokeWidth={2.5} />
-          </button>
-        </div>
-      </div>
+content = content.replace(/const displayName = profile\?\.name \|\| user\?\.displayName \|\| 'User';/, `${stateLogic}\n  // Get first name from profile or user\n  const displayName = profile?.name || user?.displayName || 'User';`);
 
-      <div className="px-6 mt-6 space-y-8">
-        {/* Status Highlights */}
-        <div className="flex gap-3">
-          <div className="flex-1 bg-yellow-50 rounded-3xl p-4 active:scale-95 transition-transform">
+const liveBlock = `<div className="flex-1 bg-yellow-50 rounded-3xl p-4 active:scale-95 transition-transform">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm">
                 <Activity size={16} className="text-[#F9C300]" strokeWidth={3} />
@@ -109,9 +65,11 @@ export default function HomePage() {
               <h3 className="text-[14px] font-bold text-zinc-900">Live</h3>
             </div>
             <p className="text-[13px] font-medium text-zinc-500">{activeShares.length > 0 ? 'Broadcasting' : 'Inactive'}</p>
-          </div>
-          
-          <Link href="/sharing" className="flex-1 bg-yellow-50 rounded-3xl p-4 active:scale-95 transition-transform block">
+          </div>`;
+
+content = content.replace(/<div className="flex-1 bg-yellow-50 rounded-3xl p-4 active:scale-95 transition-transform">[\s\S]*?<p className="text-\[13px\] font-medium text-zinc-500">Updating now<\/p>\s*<\/div>/, liveBlock);
+
+const sharingBlock = `<Link href="/sharing" className="flex-1 bg-yellow-50 rounded-3xl p-4 active:scale-95 transition-transform block">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-sm">
                 <ShieldCheck size={16} className="text-[#F9C300]" strokeWidth={3} />
@@ -119,17 +77,16 @@ export default function HomePage() {
               <h3 className="text-[14px] font-bold text-zinc-900">Sharing</h3>
             </div>
             <p className="text-[13px] font-medium text-zinc-500">{activeShares.length} people</p>
-          </Link>
-        </div>
+          </Link>`;
 
-        {/* Pending Requests */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[14px] font-bold text-zinc-900">Requests</h3>
-            <span className="bg-zinc-100 text-zinc-500 text-[11px] font-bold px-2 py-0.5 rounded-full">{pendingRequests.length} New</span>
-          </div>
-          
-          {pendingRequests.length === 0 ? (
+content = content.replace(/<Link href="\/sharing"[\s\S]*?0 people<\/p>\s*<\/Link>/, sharingBlock);
+
+const requestsHeaderBlock = `<h3 className="text-[14px] font-bold text-zinc-900">Requests</h3>
+            <span className="bg-zinc-100 text-zinc-500 text-[11px] font-bold px-2 py-0.5 rounded-full">{pendingRequests.length} New</span>`;
+
+content = content.replace(/<h3 className="text-\[14px\] font-bold text-zinc-900">Requests<\/h3>\s*<span className="bg-zinc-100 text-zinc-500 text-\[11px\] font-bold px-2 py-0.5 rounded-full">0 New<\/span>/, requestsHeaderBlock);
+
+const requestsListBlock = `{pendingRequests.length === 0 ? (
           <div className="bg-zinc-50 rounded-3xl p-6 flex flex-col items-center justify-center gap-3 border border-dashed border-zinc-200">
             <Inbox size={24} className="text-zinc-300" />
             <p className="text-[13px] font-medium text-zinc-500 text-center">No new location requests.</p>
@@ -139,7 +96,7 @@ export default function HomePage() {
             {pendingRequests.map(req => (
               <div key={req.id} className="p-3 flex items-center gap-3 border-b border-zinc-100/50 last:border-0">
                 <Image 
-                  src={req.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(req.name || 'User')}&background=F9C300&color=18181b`}
+                  src={req.photoURL || \`https://ui-avatars.com/api/?name=\${encodeURIComponent(req.name || 'User')}&background=F9C300&color=18181b\`}
                   alt={req.name || 'User'} width={40} height={40} className="rounded-full" referrerPolicy="no-referrer"
                 />
                 <div className="flex-1">
@@ -152,29 +109,22 @@ export default function HomePage() {
               </div>
             ))}
           </div>
-          )}
-        </div>
+          )}`;
 
-        {/* People List */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-[14px] font-bold text-zinc-900">Recent</h3>
-            <Link href="/people" className="text-[13px] font-bold text-zinc-500 flex items-center group">
-              View All <ChevronRight size={14} className="ml-0.5 group-active:translate-x-1 transition-transform" />
-            </Link>
-          </div>
-          
-          {recentPeople.length === 0 ? (
+content = content.replace(/<div className="bg-zinc-50 rounded-3xl p-6 flex flex-col items-center justify-center gap-3 border border-dashed border-zinc-200">\s*<Inbox size=\{24\} className="text-zinc-300" \/>\s*<p className="text-\[13px\] font-medium text-zinc-500 text-center">No new location requests\.<\/p>\s*<\/div>/, requestsListBlock);
+
+
+const peopleListBlock = `{recentPeople.length === 0 ? (
           <div className="bg-zinc-50 rounded-3xl p-6 flex flex-col items-center justify-center gap-3 border border-dashed border-zinc-200">
             <UserPlus size={24} className="text-zinc-300" />
-            <p className="text-[13px] font-medium text-zinc-500 text-center">You haven&apos;t shared your location with anyone recently.</p>
+            <p className="text-[13px] font-medium text-zinc-500 text-center">You haven't shared your location with anyone recently.</p>
           </div>
           ) : (
           <div className="bg-zinc-50 rounded-3xl p-2 border border-zinc-100 flex flex-col">
             {recentPeople.map(person => (
               <div key={person.id} className="p-3 flex items-center gap-3 border-b border-zinc-100/50 last:border-0">
                 <Image 
-                  src={person.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(person.name || 'User')}&background=F9C300&color=18181b`}
+                  src={person.photoURL || \`https://ui-avatars.com/api/?name=\${encodeURIComponent(person.name || 'User')}&background=F9C300&color=18181b\`}
                   alt={person.name || 'User'} width={40} height={40} className="rounded-full" referrerPolicy="no-referrer"
                 />
                 <div className="flex-1">
@@ -187,9 +137,9 @@ export default function HomePage() {
               </div>
             ))}
           </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+          )}`;
+
+content = content.replace(/<div className="bg-zinc-50 rounded-3xl p-6 flex flex-col items-center justify-center gap-3 border border-dashed border-zinc-200">\s*<UserPlus size=\{24\} className="text-zinc-300" \/>\s*<p className="text-\[13px\] font-medium text-zinc-500 text-center">You haven&\#39;t shared your location with anyone recently\.<\/p>\s*<\/div>/, peopleListBlock);
+
+fs.writeFileSync('app/(main)/home/page.tsx', content);
+console.log('Done');
