@@ -3,6 +3,8 @@
 import { Crosshair, X, Navigation, Loader2, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useGeolocation } from '@/hooks/useGeolocation';
+import { useBackgroundSharing } from '@/hooks/useBackgroundSharing';
+import { set } from 'firebase/database';
 import { useEffect, useState } from 'react';
 import { APIProvider, Map, AdvancedMarker, Pin, useMap } from '@vis.gl/react-google-maps';
 import { db, rtdb } from '@/lib/firebase';
@@ -67,6 +69,7 @@ export default function TrackingPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { location, error, isTracking, isRequesting, requestPermissionAndTrack, stopTracking } = useGeolocation();
+  const { startSharing, stopSharing, isSharing } = useBackgroundSharing();
   const [authorizedMarkers, setAuthorizedMarkers] = useState<MarkerData[]>([]);
   const [selectedUser, setSelectedUser] = useState<MarkerData | null>(null);
   const [outboundShares, setOutboundShares] = useState<OutboundShare[]>([]);
@@ -158,6 +161,34 @@ export default function TrackingPage() {
     });
     return () => unsubOut();
   }, [user]);
+
+  
+  useEffect(() => {
+    if (!user) return;
+    if (outboundShares.length > 0) {
+      startSharing(
+        true,
+        (loc) => {
+          // Push to Firebase RTDB
+          const locRef = ref(rtdb, 'user_locations/' + user.uid);
+          set(locRef, {
+            lat: loc.lat,
+            lng: loc.lng,
+            accuracy: loc.accuracy,
+            timestamp: loc.timestamp
+          }).catch(err => console.error('Failed to update RTDB location:', err));
+        },
+        (err) => {
+          console.error("Background sharing error:", err);
+        }
+      );
+    } else {
+      stopSharing();
+      // Remove location from RTDB when stop sharing
+      const locRef = ref(rtdb, 'user_locations/' + user.uid);
+      set(locRef, null).catch(err => console.error('Failed to remove RTDB location:', err));
+    }
+  }, [outboundShares, user, startSharing, stopSharing]);
 
   const handleToggleTracking = () => {
     if (isTracking || isRequesting) {

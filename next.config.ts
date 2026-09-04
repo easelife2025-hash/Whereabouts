@@ -1,11 +1,11 @@
 import type {NextConfig} from 'next';
-
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   typescript: {
     ignoreBuildErrors: false,
   },
   images: {
+    unoptimized: true,
     dangerouslyAllowSVG: true,
     remotePatterns: [
       {
@@ -34,7 +34,7 @@ const nextConfig: NextConfig = {
       }
     ],
   },
-  output: 'standalone',
+  output: 'export',
   transpilePackages: ['motion'],
   webpack: (config, {dev}) => {
     // HMR is disabled in AI Studio via DISABLE_HMR env var.
@@ -46,5 +46,4 @@ const nextConfig: NextConfig = {
     return config;
   },
 };
-
 export default nextConfig;
