@@ -1,4 +1,6 @@
 'use client';
+import { Capacitor } from '@capacitor/core';
+import { Geolocation } from '@capacitor/geolocation';
 
 import { Crosshair, X, Navigation, Loader2, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -69,6 +71,17 @@ export default function TrackingPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { location, error, isTracking, isRequesting, requestPermissionAndTrack, stopTracking } = useGeolocation();
+  async function handleStopSharing() {
+    try {
+      const batch = writeBatch(db);
+      outboundShares.forEach(share => {
+        batch.update(doc(db, 'location_shares', share.id), { status: 'revoked' });
+      });
+      await batch.commit();
+    } catch (err) {
+      console.error("Error stopping shares", "error occurred");
+    }
+  };
   const { startSharing, stopSharing, isSharing } = useBackgroundSharing(() => handleStopSharing());
   const [shareContext, setShareContext] = useState({ names: "", expiration: "" });
   const [authorizedMarkers, setAuthorizedMarkers] = useState<MarkerData[]>([]);
@@ -111,12 +124,12 @@ export default function TrackingPage() {
         const locRef = ref(rtdb, 'user_locations/' + uid);
         const handleValue = (locSnapshot: DataSnapshot) => {
           const data = locSnapshot.val();
-          if (data && data.lat && data.lng) {
+          if (data && (data.lat || data.latitude) && (data.lng || data.longitude)) {
             newMarkersMap.set(uid, {
               uid,
               name: userData.name,
-              lat: data.lat,
-              lng: data.lng,
+              lat: data.latitude || data.lat,
+              lng: data.longitude || data.lng,
               timestamp: data.timestamp || data.updatedAt
             });
           } else {
@@ -205,7 +218,35 @@ export default function TrackingPage() {
     if (!user) return;
     
     const startBackground = async () => {
-      if (outboundShares.length > 0) {
+      // 4. Sharing has not expired
+      const validShares = outboundShares.filter(share => {
+         if (!share.expiresAt) return true;
+         const time = share.expiresAt.toMillis ? share.expiresAt.toMillis() : share.expiresAt;
+         return time > Date.now();
+      });
+
+      // 3. The location owner has granted device location permission
+      let hasPermission = false;
+      if (Capacitor.isNativePlatform()) {
+        try {
+          const permStatus = await Geolocation.checkPermissions();
+          hasPermission = (permStatus.location === 'granted' || permStatus.coarseLocation === 'granted');
+        } catch(e) {
+          hasPermission = false;
+        }
+      } else {
+        hasPermission = true;
+      }
+
+      // 1. User is authenticated (checked at top)
+      // 2. Another user has an active permission (validShares.length > 0)
+      // 3. Location permission granted (hasPermission)
+      // 4. Sharing has not expired (validShares)
+      // 5. User explicitly started sharing (isTracking is true)
+      
+      const shouldShare = validShares.length > 0 && hasPermission;
+
+      if (shouldShare) {
         const token = await user.getIdToken();
         const dbUrl = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || '';
         
@@ -217,28 +258,28 @@ export default function TrackingPage() {
           token,
           user.uid,
           (loc) => {
-          // Push to Firebase RTDB
-          const locRef = ref(rtdb, 'user_locations/' + user.uid);
-          set(locRef, {
-            lat: loc.lat,
-            lng: loc.lng,
-            accuracy: loc.accuracy,
-            timestamp: loc.timestamp
-          }).catch(err => console.error('Failed to update RTDB location:', err));
-        },
-        (err) => {
-          console.error("Background sharing error:", err);
-        }
-      );
-    } else {
-      stopSharing();
-      // Remove location from RTDB when stop sharing
-      const locRef = ref(rtdb, 'user_locations/' + user.uid);
-      set(locRef, null).catch(err => console.error('Failed to remove RTDB location:', err));
-    }
+            // Push to Firebase RTDB
+            const locRef = ref(rtdb, 'user_locations/' + user.uid);
+            set(locRef, {
+              latitude: loc.lat,
+              longitude: loc.lng,
+              accuracy: loc.accuracy,
+              updatedAt: loc.timestamp
+            }).catch(err => console.error('Failed to update RTDB location:', err));
+          },
+          (err) => {
+            console.error("Background sharing error:", err);
+          }
+        );
+      } else {
+        stopSharing();
+        // Remove location from RTDB when stop sharing
+        const locRef = ref(rtdb, 'user_locations/' + user.uid);
+        set(locRef, null).catch(err => console.error('Failed to remove RTDB location:', err));
+      }
     };
     startBackground();
-  }, [outboundShares, user, startSharing, stopSharing, shareContext]);
+  }, [outboundShares, user, startSharing, stopSharing, shareContext, isTracking]);
 
   const handleToggleTracking = () => {
     if (isTracking || isRequesting) {
@@ -248,17 +289,7 @@ export default function TrackingPage() {
     }
   };
 
-  const handleStopSharing = async () => {
-    try {
-      const batch = writeBatch(db);
-      outboundShares.forEach(share => {
-        batch.update(doc(db, 'location_shares', share.id), { status: 'revoked' });
-      });
-      await batch.commit();
-    } catch (err) {
-      console.error("Error stopping shares", "error occurred");
-    }
-  };
+  
 
   const center = location ? { lat: location.lat, lng: location.lng } : null;
 
