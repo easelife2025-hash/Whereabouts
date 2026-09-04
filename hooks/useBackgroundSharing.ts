@@ -1,8 +1,13 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import type { BackgroundGeolocationPlugin } from '@capacitor-community/background-geolocation';
 
-const BackgroundGeolocation = registerPlugin<BackgroundGeolocationPlugin>('BackgroundGeolocation');
+export interface CustomBackgroundGeolocationPlugin extends BackgroundGeolocationPlugin {
+  addListener(eventName: 'stopSharing', listenerFunc: () => void): any;
+  updateNotification(options: { backgroundTitle: string, backgroundMessage: string }): Promise<void>;
+}
+
+const BackgroundGeolocation = registerPlugin<CustomBackgroundGeolocationPlugin>('BackgroundGeolocation');
 
 export type BackgroundLocationData = {
   lat: number;
@@ -11,12 +16,30 @@ export type BackgroundLocationData = {
   timestamp: number;
 };
 
-export function useBackgroundSharing() {
+export function useBackgroundSharing(onStopRequested?: () => void) {
   const [isSharing, setIsSharing] = useState(false);
   const watcherIdRef = useRef<string | null>(null);
 
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      const listener = BackgroundGeolocation.addListener('stopSharing', () => {
+        if (onStopRequested) {
+          onStopRequested();
+        }
+      });
+      return () => {
+        listener.then(l => l.remove());
+      };
+    }
+  }, [onStopRequested]);
+
   const startSharing = useCallback(async (
     hasAuthorizedSession: boolean,
+    sharedWithNames: string,
+    expirationTime: string,
+    firebaseDbUrl: string,
+    firebaseToken: string,
+    firebaseUid: string,
     onLocationUpdate: (loc: BackgroundLocationData) => void,
     onError: (err: any) => void
   ) => {
@@ -25,22 +48,40 @@ export function useBackgroundSharing() {
       return;
     }
 
-    if (isSharing) return;
+    const message = `Visible to: ${sharedWithNames || 'Selected contacts'}\nExpires: ${expirationTime}`;
+    const title = "Location sharing is active";
+
+    if (isSharing) {
+      // Update existing notification dynamically
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await BackgroundGeolocation.updateNotification({
+             backgroundTitle: title,
+             backgroundMessage: message
+          });
+        } catch (e) {
+          console.warn("Failed to update notification", e);
+        }
+      }
+      return;
+    }
 
     try {
       if (Capacitor.isNativePlatform()) {
         const watcher_id = await BackgroundGeolocation.addWatcher(
           {
-            backgroundMessage: "Your live location is being shared in the background.",
-            backgroundTitle: "Live Sharing Active",
+            backgroundMessage: message,
+            backgroundTitle: title,
             requestPermissions: true,
             stale: false,
-            distanceFilter: 10 // meters
-          },
+            distanceFilter: 10, // meters
+            firebaseDbUrl,
+            firebaseToken,
+            firebaseUid
+          } as any,
           function callback(location, error) {
             if (error) {
               if (error.code === "NOT_AUTHORIZED") {
-                // Not authorized logic
                 onError(new Error("Location permission not authorized."));
               } else {
                 onError(error);
@@ -61,8 +102,6 @@ export function useBackgroundSharing() {
         watcherIdRef.current = watcher_id;
         setIsSharing(true);
       } else {
-        // Fallback to standard geolocation if not on native platform, 
-        // though it won't work purely in the background reliably.
         const id = navigator.geolocation.watchPosition(
           (position) => {
             onLocationUpdate({

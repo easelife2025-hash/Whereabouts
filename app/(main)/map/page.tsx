@@ -69,7 +69,8 @@ export default function TrackingPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { location, error, isTracking, isRequesting, requestPermissionAndTrack, stopTracking } = useGeolocation();
-  const { startSharing, stopSharing, isSharing } = useBackgroundSharing();
+  const { startSharing, stopSharing, isSharing } = useBackgroundSharing(() => handleStopSharing());
+  const [shareContext, setShareContext] = useState({ names: "", expiration: "" });
   const [authorizedMarkers, setAuthorizedMarkers] = useState<MarkerData[]>([]);
   const [selectedUser, setSelectedUser] = useState<MarkerData | null>(null);
   const [outboundShares, setOutboundShares] = useState<OutboundShare[]>([]);
@@ -163,12 +164,59 @@ export default function TrackingPage() {
   }, [user]);
 
   
+  
+  useEffect(() => {
+    const fetchContext = async () => {
+      if (outboundShares.length === 0) {
+        setShareContext({ names: "", expiration: "" });
+        return;
+      }
+      
+      const names = [];
+      let earliestExpiration = Infinity;
+
+      for (const share of outboundShares) {
+        if (share.requesterId) {
+          const userDoc = await getDoc(doc(db, 'users', share.requesterId));
+          if (userDoc.exists()) {
+            names.push(userDoc.data().name);
+          }
+        }
+        if (share.expiresAt) {
+          const time = share.expiresAt.toMillis ? share.expiresAt.toMillis() : share.expiresAt;
+          if (time < earliestExpiration) {
+            earliestExpiration = time;
+          }
+        }
+      }
+
+      const namesStr = names.length > 0 ? names.join(', ') : 'Selected contacts';
+      let expirationStr = 'Never';
+      if (earliestExpiration !== Infinity) {
+        expirationStr = new Date(earliestExpiration).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+
+      setShareContext({ names: namesStr, expiration: expirationStr });
+    };
+    fetchContext();
+  }, [outboundShares]);
+
   useEffect(() => {
     if (!user) return;
-    if (outboundShares.length > 0) {
-      startSharing(
-        true,
-        (loc) => {
+    
+    const startBackground = async () => {
+      if (outboundShares.length > 0) {
+        const token = await user.getIdToken();
+        const dbUrl = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL || '';
+        
+        startSharing(
+          true,
+          shareContext.names,
+          shareContext.expiration,
+          dbUrl,
+          token,
+          user.uid,
+          (loc) => {
           // Push to Firebase RTDB
           const locRef = ref(rtdb, 'user_locations/' + user.uid);
           set(locRef, {
@@ -188,7 +236,9 @@ export default function TrackingPage() {
       const locRef = ref(rtdb, 'user_locations/' + user.uid);
       set(locRef, null).catch(err => console.error('Failed to remove RTDB location:', err));
     }
-  }, [outboundShares, user, startSharing, stopSharing]);
+    };
+    startBackground();
+  }, [outboundShares, user, startSharing, stopSharing, shareContext]);
 
   const handleToggleTracking = () => {
     if (isTracking || isRequesting) {
