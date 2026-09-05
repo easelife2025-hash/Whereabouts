@@ -15,13 +15,21 @@ import { collection, doc, getDoc, getDocs, onSnapshot, query, where, addDoc, upd
 import { useAuth } from '@/components/auth/AuthProvider';
 import Image from 'next/image';
 
-function MapController({ center }: { center: { lat: number; lng: number } | null }) {
+function MapController({ center, tick, isFollowing }: { center: { lat: number; lng: number } | null, tick: number, isFollowing: boolean }) {
   const map = useMap();
+  useEffect(() => {
+    if (map && center && isFollowing) {
+      map.panTo(center);
+    }
+  }, [map, center?.lat, center?.lng, isFollowing]);
+
   useEffect(() => {
     if (map && center) {
       map.panTo(center);
+      map.setZoom(15);
     }
-  }, [map, center]);
+  }, [tick]);
+
   return null;
 }
 
@@ -75,6 +83,8 @@ export default function TrackingPage() {
   const [authorizedMarkers, setAuthorizedMarkers] = useState<MarkerData[]>([]);
   const [selectedUser, setSelectedUser] = useState<MarkerData | null>(null);
   const [outboundShares, setOutboundShares] = useState<OutboundShare[]>([]);
+  const [recenterTick, setRecenterTick] = useState(0);
+  const [isFollowing, setIsFollowing] = useState(true);
   const stopSharingRef = useRef<(() => void) | null>(null);
 
   async function handleStopSharing() {
@@ -344,9 +354,10 @@ export default function TrackingPage() {
   }, [outboundShares, user, startSharing, stopSharing, shareContext, isTracking]);
 
   const handleToggleTracking = () => {
-    if (isTracking || isRequesting) {
-      stopTracking();
-    } else {
+    if (isTracking && location) {
+      setIsFollowing(true);
+      setRecenterTick(t => t + 1);
+    } else if (!isRequesting) {
       requestPermissionAndTrack();
     }
   };
@@ -367,8 +378,9 @@ export default function TrackingPage() {
             disableDefaultUI={true}
             style={{ width: '100%', height: '100%' }}
             internalUsageAttributionIds={["gmp_mcp_codeassist_v1_aistudio"]}
+            onDragstart={() => setIsFollowing(false)}
           >
-            <MapController center={center} />
+            <MapController center={center} tick={recenterTick} isFollowing={isFollowing} />
             
             {/* Current User Marker */}
             {location && (
@@ -409,7 +421,7 @@ export default function TrackingPage() {
           
           <button 
             onClick={handleToggleTracking}
-            className={`w-12 h-12 backdrop-blur-md rounded-full shadow-sm flex items-center justify-center pointer-events-auto border transition-colors ${isTracking ? 'bg-[#F9C300] text-zinc-900 border-[#E5B200]' : 'bg-white/90 text-zinc-900 hover:bg-zinc-50 border-zinc-200/50 active:bg-zinc-100'}`}
+            className={`w-12 h-12 backdrop-blur-md rounded-full shadow-sm flex items-center justify-center pointer-events-auto border transition-colors ${isTracking && isFollowing ? 'bg-[#F9C300] text-zinc-900 border-[#E5B200]' : 'bg-white/90 text-zinc-900 hover:bg-zinc-50 border-zinc-200/50 active:bg-zinc-100'}`}
           >
             {isRequesting ? (
               <Loader2 size={22} strokeWidth={2.5} className="animate-spin" />
