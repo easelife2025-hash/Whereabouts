@@ -7,7 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useGeolocation } from '@/hooks/useGeolocation';
 import { useBackgroundSharing } from '@/hooks/useBackgroundSharing';
 import { set } from 'firebase/database';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { APIProvider, Map, AdvancedMarker, Pin, useMap } from '@vis.gl/react-google-maps';
 import { db, rtdb } from '@/lib/firebase';
 import { ref, onValue, off, DataSnapshot } from 'firebase/database';
@@ -63,14 +63,20 @@ function AnimatedMarker({ marker, onClick }: { marker: any; onClick: () => void 
   );
 }
 
-type OutboundShare = { id: string };
-type MarkerData = { uid: string; name: string; lat: number; lng: number; timestamp: number; };
+type OutboundShare = { id: string; requesterId?: string; expiresAt?: any; [key: string]: any; };
+type MarkerData = { uid: string; name: string; lat: number; lng: number; timestamp: number; expiresAt: number | null; };
 
 export default function TrackingPage() {
 
   const router = useRouter();
   const { user } = useAuth();
   const { location, error, isTracking, isRequesting, requestPermissionAndTrack, stopTracking } = useGeolocation();
+  const [shareContext, setShareContext] = useState({ names: "", expiration: "" });
+  const [authorizedMarkers, setAuthorizedMarkers] = useState<MarkerData[]>([]);
+  const [selectedUser, setSelectedUser] = useState<MarkerData | null>(null);
+  const [outboundShares, setOutboundShares] = useState<OutboundShare[]>([]);
+  const stopSharingRef = useRef<(() => void) | null>(null);
+
   async function handleStopSharing() {
     try {
       const batch = writeBatch(db);
@@ -78,15 +84,39 @@ export default function TrackingPage() {
         batch.update(doc(db, 'location_shares', share.id), { status: 'revoked' });
       });
       await batch.commit();
+      
+      stopTracking();
+      if (stopSharingRef.current) stopSharingRef.current();
+      
+      if (user?.uid) {
+        const locRef = ref(rtdb, 'user_locations/' + user.uid);
+        await set(locRef, null);
+      }
     } catch (err) {
-      console.error("Error stopping shares", "error occurred");
+      console.error("Error stopping shares", err);
     }
   };
   const { startSharing, stopSharing, isSharing } = useBackgroundSharing(() => handleStopSharing());
-  const [shareContext, setShareContext] = useState({ names: "", expiration: "" });
-  const [authorizedMarkers, setAuthorizedMarkers] = useState<MarkerData[]>([]);
-  const [selectedUser, setSelectedUser] = useState<MarkerData | null>(null);
-  const [outboundShares, setOutboundShares] = useState<OutboundShare[]>([]);
+  useEffect(() => { stopSharingRef.current = stopSharing; }, [stopSharing]);
+
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAuthorizedMarkers(prev => {
+        const now = Date.now();
+        const next = prev.filter(m => !m.expiresAt || m.expiresAt > now);
+        if (next.length !== prev.length) {
+          return next;
+        }
+        return prev;
+      });
+      setSelectedUser(prev => {
+        if (prev && prev.expiresAt && prev.expiresAt <= Date.now()) return null;
+        return prev;
+      });
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -105,7 +135,14 @@ export default function TrackingPage() {
       rtdbUnsubs.forEach(unsub => unsub());
       rtdbUnsubs = [];
       
-      const authorizedIds = snapshot.docs.map(doc => doc.data().recipientId);
+      const authorizedShares = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          recipientId: data.recipientId,
+          expiresAt: data.expiresAt ? (data.expiresAt.toMillis ? data.expiresAt.toMillis() : data.expiresAt) : null
+        };
+      });
+      const authorizedIds = authorizedShares.map(s => s.recipientId);
       
       if (authorizedIds.length === 0) {
         setAuthorizedMarkers([]);
@@ -125,12 +162,14 @@ export default function TrackingPage() {
         const handleValue = (locSnapshot: DataSnapshot) => {
           const data = locSnapshot.val();
           if (data && (data.lat || data.latitude) && (data.lng || data.longitude)) {
+            const shareInfo = authorizedShares.find(s => s.recipientId === uid);
             newMarkersMap.set(uid, {
               uid,
               name: userData.name,
               lat: data.latitude || data.lat,
               lng: data.longitude || data.lng,
-              timestamp: data.timestamp || data.updatedAt
+              timestamp: data.timestamp || data.updatedAt,
+              expiresAt: shareInfo ? shareInfo.expiresAt : null
             });
           } else {
              newMarkersMap.delete(uid);
@@ -162,6 +201,28 @@ export default function TrackingPage() {
       rtdbUnsubs.forEach(unsub => unsub());
     };
   }, [user]);
+
+  useEffect(() => {
+    if (!outboundShares.length) return;
+    
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const expired = outboundShares.filter(share => {
+         if (!share.expiresAt) return false;
+         const time = share.expiresAt.toMillis ? share.expiresAt.toMillis() : share.expiresAt;
+         return time <= now;
+      });
+      
+      if (expired.length > 0) {
+        const batch = writeBatch(db);
+        expired.forEach(share => {
+          batch.update(doc(db, 'location_shares', share.id), { status: 'expired' });
+        });
+        batch.commit().catch(console.error);
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [outboundShares]);
 
   useEffect(() => {
     if (!user) return;
@@ -244,7 +305,7 @@ export default function TrackingPage() {
       // 4. Sharing has not expired (validShares)
       // 5. User explicitly started sharing (isTracking is true)
       
-      const shouldShare = validShares.length > 0 && hasPermission;
+      const shouldShare = validShares.length > 0 && hasPermission && isTracking;
 
       if (shouldShare) {
         const token = await user.getIdToken();
@@ -272,6 +333,7 @@ export default function TrackingPage() {
           }
         );
       } else {
+        stopTracking();
         stopSharing();
         // Remove location from RTDB when stop sharing
         const locRef = ref(rtdb, 'user_locations/' + user.uid);

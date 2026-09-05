@@ -28,7 +28,7 @@ export function useBackgroundSharing(onStopRequested?: () => void) {
         }
       });
       return () => {
-        listener.then(l => l.remove());
+        listener.then((l: any) => l.remove());
       };
     }
   }, [onStopRequested]);
