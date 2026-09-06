@@ -343,7 +343,6 @@ export default function TrackingPage() {
           }
         );
       } else {
-        stopTracking();
         stopSharing();
         // Remove location from RTDB when stop sharing
         const locRef = ref(rtdb, 'user_locations/' + user.uid);
