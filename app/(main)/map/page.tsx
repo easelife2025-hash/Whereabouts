@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/immutability */
 'use client';
 import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
@@ -8,14 +9,14 @@ import { useGeolocation } from '@/hooks/useGeolocation';
 import { useBackgroundSharing } from '@/hooks/useBackgroundSharing';
 import { set } from 'firebase/database';
 import { useEffect, useState, useRef } from 'react';
-import { APIProvider, Map, AdvancedMarker, Pin, useMap } from '@vis.gl/react-google-maps';
+import { APIProvider, Map, Map3D, Marker3D, AdvancedMarker, Pin, useMap, useMap3D } from '@vis.gl/react-google-maps';
 import { db, rtdb } from '@/lib/firebase';
 import { ref, onValue, off, DataSnapshot } from 'firebase/database';
 import { collection, doc, getDoc, getDocs, onSnapshot, query, where, addDoc, updateDoc, setDoc, deleteDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { useAuth } from '@/components/auth/AuthProvider';
 import Image from 'next/image';
 
-function MapController({ center, tick, isFollowing }: { center: { lat: number; lng: number } | null, tick: number, isFollowing: boolean }) {
+function MapController({ center, tick, isFollowing, is3D }: { center: { lat: number; lng: number } | null, tick: number, isFollowing: boolean, is3D?: boolean }) {
   const map = useMap();
   useEffect(() => {
     if (map && center && isFollowing) {
@@ -30,10 +31,81 @@ function MapController({ center, tick, isFollowing }: { center: { lat: number; l
     }
   }, [tick]);
 
+
+
   return null;
 }
 
 
+
+function Map3DController({ center, tick, isFollowing }: { center: { lat: number; lng: number } | null, tick: number, isFollowing: boolean }) {
+  const map3d = useMap3D();
+  
+  useEffect(() => {
+    if (map3d && center && isFollowing) {
+      map3d.center = { lat: center.lat, lng: center.lng, altitude: 0 };
+    }
+  }, [map3d, center?.lat, center?.lng, isFollowing]);
+
+  useEffect(() => {
+    if (map3d && center) {
+      map3d.center = { lat: center.lat, lng: center.lng, altitude: 0 };
+      map3d.range = 500;
+    }
+  }, [tick]);
+
+  return null;
+}
+
+function AnimatedMarker3D({ marker, onClick }: { marker: any; onClick: () => void }) {
+  const [pos, setPos] = useState({ lat: marker.lat, lng: marker.lng });
+
+  useEffect(() => {
+    let start = pos;
+    let end = { lat: marker.lat, lng: marker.lng };
+    if (start.lat === end.lat && start.lng === end.lng) return;
+
+    let startTime = performance.now();
+    let duration = 1000;
+    let frameId: number;
+
+    const animate = (time: number) => {
+      let progress = (time - startTime) / duration;
+      if (progress > 1) progress = 1;
+      const easeProgress = progress * (2 - progress);
+
+      setPos({
+        lat: start.lat + (end.lat - start.lat) * easeProgress,
+        lng: start.lng + (end.lng - start.lng) * easeProgress
+      });
+
+      if (progress < 1) {
+        frameId = requestAnimationFrame(animate);
+      }
+    };
+
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
+  }, [marker.lat, marker.lng]);
+
+  return (
+    <Marker3D position={{ lat: pos.lat, lng: pos.lng, altitude: 0 }} altitudeMode="RELATIVE_TO_GROUND" onClick={onClick}>
+      <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="20" cy="20" r="19" fill="#F9C300" stroke="white" strokeWidth="2" />
+        {marker.photoUrl ? (
+          <image href={marker.photoUrl} x="4" y="4" width="32" height="32" clipPath="url(#circle)" />
+        ) : (
+          <text x="20" y="26" fontSize="16" fontWeight="bold" textAnchor="middle" fill="#18181b">{marker.name.charAt(0)}</text>
+        )}
+        <defs>
+          <clipPath id="circle">
+            <circle cx="20" cy="20" r="16" />
+          </clipPath>
+        </defs>
+      </svg>
+    </Marker3D>
+  );
+}
 function AnimatedMarker({ marker, onClick }: { marker: any; onClick: () => void }) {
   const [pos, setPos] = useState({ lat: marker.lat, lng: marker.lng });
 
@@ -85,6 +157,7 @@ export default function TrackingPage() {
   const [outboundShares, setOutboundShares] = useState<OutboundShare[]>([]);
   const [recenterTick, setRecenterTick] = useState(0);
   const [isFollowing, setIsFollowing] = useState(true);
+  const [is3D, setIs3D] = useState(false);
   const stopSharingRef = useRef<(() => void) | null>(null);
 
   async function handleStopSharing() {
@@ -368,41 +441,79 @@ export default function TrackingPage() {
   return (
     <div className="flex flex-col flex-1 bg-zinc-50 relative h-full w-full">
       <div className="absolute inset-0">
-        <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}>
-          <Map
-            defaultCenter={{ lat: 0, lng: 0 }}
-            defaultZoom={15}
-            mapId="DEMO_MAP_ID"
-            gestureHandling={'greedy'}
-            disableDefaultUI={true}
-            style={{ width: '100%', height: '100%' }}
-            internalUsageAttributionIds={["gmp_mcp_codeassist_v1_aistudio"]}
-            onDragstart={() => setIsFollowing(false)}
-          >
-            <MapController center={center} tick={recenterTick} isFollowing={isFollowing} />
-            
-            {/* Current User Marker */}
-            {location && (
-              <AdvancedMarker position={{ lat: location.lat, lng: location.lng }} zIndex={10}>
-                <div className="relative">
-                  <div className="w-12 h-12 bg-white rounded-full p-1 shadow-xl flex items-center justify-center relative z-10 border-2 border-[#F9C300]">
-                    <div className="bg-zinc-100 w-full h-full rounded-full flex items-center justify-center">
-                      <Navigation size={20} className="text-[#F9C300]" />
+        <APIProvider apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''} version="alpha">
+          {/* 2D Vector Map */}
+          <div className={`absolute inset-0 transition-opacity duration-300 ${is3D ? 'opacity-0 pointer-events-none' : 'opacity-100'}`} onPointerDown={() => setIsFollowing(false)}>
+            <Map
+              defaultCenter={{ lat: 0, lng: 0 }}
+              defaultZoom={15}
+              mapId="DEMO_MAP_ID"
+              renderingType="VECTOR"
+              gestureHandling={'greedy'}
+              disableDefaultUI={true}
+              style={{ width: '100%', height: '100%' }}
+              internalUsageAttributionIds={["gmp_mcp_codeassist_v1_aistudio"]}
+              onDragstart={() => setIsFollowing(false)}
+            >
+              <MapController center={center} tick={recenterTick} isFollowing={isFollowing} is3D={false} />
+              
+              {/* Current User Marker */}
+              {location && (
+                <AdvancedMarker position={{ lat: location.lat, lng: location.lng }} zIndex={10}>
+                  <div className="relative">
+                    <div className="w-12 h-12 bg-white rounded-full p-1 shadow-xl flex items-center justify-center relative z-10 border-2 border-[#F9C300]">
+                      <div className="bg-zinc-100 w-full h-full rounded-full flex items-center justify-center">
+                        <Navigation size={20} className="text-[#F9C300]" />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </AdvancedMarker>
-            )}
+                </AdvancedMarker>
+              )}
 
-            {/* Authorized Persons Markers */}
-            {authorizedMarkers.map((marker) => (
-              <AnimatedMarker 
-                key={marker.uid}
-                marker={marker}
-                onClick={() => setSelectedUser(marker)}
-              />
-            ))}
-          </Map>
+              {/* Authorized Persons Markers */}
+              {authorizedMarkers.map((marker) => (
+                <AnimatedMarker 
+                  key={marker.uid}
+                  marker={marker}
+                  onClick={() => setSelectedUser(marker)}
+                />
+              ))}
+            </Map>
+          </div>
+
+          {/* Photorealistic 3D Map */}
+          <div className={`absolute inset-0 transition-opacity duration-300 ${is3D ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onPointerDown={() => setIsFollowing(false)} onTouchStart={() => setIsFollowing(false)}>
+            <Map3D
+              mode="SATELLITE"
+              center={center ? { lat: center.lat, lng: center.lng, altitude: 0 } : { lat: 0, lng: 0, altitude: 0 }}
+              range={1000}
+              tilt={67.5}
+              heading={45}
+              defaultLabelsDisabled={false}
+            >
+              <Map3DController center={center} tick={recenterTick} isFollowing={isFollowing} />
+              
+              {/* Current User Marker */}
+              {location && (
+                <Marker3D position={{ lat: location.lat, lng: location.lng, altitude: 0 }} altitudeMode="RELATIVE_TO_GROUND">
+                  <svg width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="24" cy="24" r="23" fill="white" stroke="#F9C300" strokeWidth="2" />
+                    <circle cx="24" cy="24" r="18" fill="#f4f4f5" />
+                    <path d="M18 26L32 16L22 30L21 25L18 26Z" fill="#F9C300" />
+                  </svg>
+                </Marker3D>
+              )}
+
+              {/* Authorized Persons Markers */}
+              {authorizedMarkers.map((marker) => (
+                <AnimatedMarker3D 
+                  key={marker.uid}
+                  marker={marker}
+                  onClick={() => setSelectedUser(marker)}
+                />
+              ))}
+            </Map3D>
+          </div>
         </APIProvider>
       </div>
 
@@ -410,24 +521,32 @@ export default function TrackingPage() {
       <div className="absolute inset-0 flex flex-col z-10 pointer-events-none">
         
         {/* Top Controls */}
-        <div className="p-4 flex justify-between items-start mt-2">
+        <div className="p-4 flex justify-between items-start mt-2 pointer-events-none">
           <button 
             onClick={() => router.back()}
-            className="w-12 h-12 bg-white/90 backdrop-blur-md rounded-full shadow-sm flex items-center justify-center text-zinc-900 pointer-events-auto border border-zinc-200/50 active:bg-zinc-100 transition-colors"
+            className="w-12 h-12 bg-white/90 backdrop-blur-md rounded-full shadow-sm flex items-center justify-center text-zinc-900 pointer-events-auto border border-zinc-200/50 active:bg-zinc-100 transition-colors shrink-0"
           >
             <X size={24} strokeWidth={2.5} />
           </button>
           
-          <button 
-            onClick={handleToggleTracking}
-            className={`w-12 h-12 backdrop-blur-md rounded-full shadow-sm flex items-center justify-center pointer-events-auto border transition-colors ${isTracking && isFollowing ? 'bg-[#F9C300] text-zinc-900 border-[#E5B200]' : 'bg-white/90 text-zinc-900 hover:bg-zinc-50 border-zinc-200/50 active:bg-zinc-100'}`}
-          >
-            {isRequesting ? (
-              <Loader2 size={22} strokeWidth={2.5} className="animate-spin" />
-            ) : (
-              <Crosshair size={22} strokeWidth={2.5} />
-            )}
-          </button>
+          <div className="flex flex-col gap-3 pointer-events-auto">
+            <button 
+              onClick={handleToggleTracking}
+              className={`w-12 h-12 backdrop-blur-md rounded-full shadow-sm flex items-center justify-center border transition-colors ${isTracking && isFollowing ? 'bg-[#F9C300] text-zinc-900 border-[#E5B200]' : 'bg-white/90 text-zinc-900 hover:bg-zinc-50 border-zinc-200/50 active:bg-zinc-100'}`}
+            >
+              {isRequesting ? (
+                <Loader2 size={22} strokeWidth={2.5} className="animate-spin" />
+              ) : (
+                <Crosshair size={22} strokeWidth={2.5} />
+              )}
+            </button>
+            <button
+              onClick={() => setIs3D(!is3D)}
+              className={`w-12 h-12 backdrop-blur-md rounded-full shadow-sm flex items-center justify-center border transition-colors font-black text-[13px] ${is3D ? 'bg-[#F9C300] text-zinc-900 border-[#E5B200]' : 'bg-white/90 text-zinc-900 hover:bg-zinc-50 border-zinc-200/50 active:bg-zinc-100'}`}
+            >
+              3D
+            </button>
+          </div>
         </div>
 
         {/* Bottom Info Card */}
