@@ -25,15 +25,11 @@ export function useGeolocation() {
   const [isRequesting, setIsRequesting] = useState(false);
   const watchIdRef = useRef<string | number | null>(null);
 
-  const stopTracking = useCallback(async () => {
+  const stopTracking = useCallback(() => {
     setIsTracking(false);
     setIsRequesting(false);
     if (watchIdRef.current !== null) {
-      if (Capacitor.isNativePlatform()) {
-        await Geolocation.clearWatch({ id: watchIdRef.current as string });
-      } else {
-        navigator.geolocation.clearWatch(watchIdRef.current as number);
-      }
+      navigator.geolocation.clearWatch(watchIdRef.current as number);
       watchIdRef.current = null;
     }
   }, []);
@@ -89,79 +85,53 @@ export function useGeolocation() {
   useEffect(() => {
     let active = true;
 
-    const startWatching = async () => {
-      if (Capacitor.isNativePlatform()) {
-        try {
-          const id = await Geolocation.watchPosition(
-            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
-            (position, err) => {
-              if (!active) return;
-              if (err) {
-                setIsRequesting(false);
-                setIsTracking(false);
-                setError('Location unavailable');
-                return;
-              }
-              if (position) {
-                setIsRequesting(false);
-                setLocation({
-                  lat: position.coords.latitude,
-                  lng: position.coords.longitude,
-                  accuracy: position.coords.accuracy,
-                  timestamp: position.timestamp,
-                });
-                setError(null);
-              }
-            }
-          );
-          if (active) watchIdRef.current = id;
-          else Geolocation.clearWatch({ id });
-        } catch (e) {
-          if (active) {
-            setError('Location unavailable');
-            setIsRequesting(false);
-            setIsTracking(false);
-          }
+    const startWatching = () => {
+      if (!('geolocation' in navigator)) {
+        if (active) {
+          setError('Geolocation not supported');
+          setIsRequesting(false);
+          setIsTracking(false);
         }
-      } else {
-        const id = navigator.geolocation.watchPosition(
-          (position) => {
-            if (!active) return;
-            setIsRequesting(false);
-            setLocation({
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-              accuracy: position.coords.accuracy,
-              timestamp: position.timestamp,
-            });
-            setError(null);
-          },
-          (err) => {
-            if (!active) return;
-            setIsRequesting(false);
-            setIsTracking(false);
-            switch (err.code) {
-              case err.PERMISSION_DENIED:
-                setError('Permission denied');
-                break;
-              case err.POSITION_UNAVAILABLE:
-                setError('Location unavailable');
-                break;
-              case err.TIMEOUT:
-                setError('Network errors');
-                break;
-              default:
-                setError('Location unavailable');
-            }
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 15000,
-            maximumAge: 0
-          }
-        );
-        watchIdRef.current = id;
+        return;
       }
+
+      const id = navigator.geolocation.watchPosition(
+        (position) => {
+          if (!active) return;
+          setIsRequesting(false);
+          setLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            timestamp: position.timestamp,
+          });
+          setError(null);
+        },
+        (err) => {
+          if (!active) return;
+          setIsRequesting(false);
+          setIsTracking(false);
+          switch (err.code) {
+            case err.PERMISSION_DENIED:
+              setError('Permission denied');
+              break;
+            case err.POSITION_UNAVAILABLE:
+              setError('Location unavailable');
+              break;
+            case err.TIMEOUT:
+              setError('Network errors');
+              break;
+            default:
+              setError('Location unavailable');
+          }
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0
+        }
+      );
+      watchIdRef.current = id;
     };
 
     if (isTracking) {
@@ -171,11 +141,7 @@ export function useGeolocation() {
     return () => {
       active = false;
       if (watchIdRef.current !== null) {
-        if (Capacitor.isNativePlatform()) {
-          Geolocation.clearWatch({ id: watchIdRef.current as string });
-        } else {
-          navigator.geolocation.clearWatch(watchIdRef.current as number);
-        }
+        navigator.geolocation.clearWatch(watchIdRef.current as number);
         watchIdRef.current = null;
       }
     };
