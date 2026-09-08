@@ -485,10 +485,10 @@ export default function TrackingPage() {
           <div className={`absolute inset-0 transition-opacity duration-300 ${is3D ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onPointerDown={() => setIsFollowing(false)} onTouchStart={() => setIsFollowing(false)}>
             <Map3D
               mode="SATELLITE"
-              center={center ? { lat: center.lat, lng: center.lng, altitude: 0 } : { lat: 0, lng: 0, altitude: 0 }}
-              range={1000}
-              tilt={67.5}
-              heading={45}
+              defaultCenter={center ? { lat: center.lat, lng: center.lng, altitude: 0 } : { lat: 0, lng: 0, altitude: 0 }}
+              defaultRange={1000}
+              defaultTilt={67.5}
+              defaultHeading={45}
               defaultLabelsDisabled={false}
             >
               <Map3DController center={center} tick={recenterTick} isFollowing={isFollowing} />
