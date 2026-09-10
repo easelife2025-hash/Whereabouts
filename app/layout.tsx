@@ -1,6 +1,7 @@
 import type {Metadata, Viewport} from 'next';
 import './globals.css';
 import { AuthProvider } from '@/components/auth/AuthProvider';
+import CookieConsent from '@/components/CookieConsent';
 
 export const metadata: Metadata = {
   title: 'Whereabouts',
@@ -22,6 +23,7 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
         <AuthProvider>
           {children}
         </AuthProvider>
+        <CookieConsent />
       </body>
     </html>
   );

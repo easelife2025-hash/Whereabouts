@@ -2,6 +2,8 @@
 
 import { ArrowLeft, User, Mail, Lock, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Shield, FileText, Cookie, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
