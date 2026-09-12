@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 'use client';
 
 import { Outfit } from 'next/font/google';
@@ -19,13 +20,10 @@ export default function HomePage() {
   useEffect(() => {
     const hour = new Date().getHours();
     if (hour >= 5 && hour < 12) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setGreeting('Good morning');
     } else if (hour >= 12 && hour < 16) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setGreeting('Good afternoon');
     } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setGreeting('Good evening');
     }
   }, []);

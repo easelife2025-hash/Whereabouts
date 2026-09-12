@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable react-hooks/immutability */
 'use client';
 import { Capacitor } from '@capacitor/core';
@@ -199,7 +200,7 @@ export default function TrackingPage() {
       });
     }, 10000);
     return () => clearInterval(interval);
-  }, []);
+    }, []);
 
   useEffect(() => {
     if (!user) return;

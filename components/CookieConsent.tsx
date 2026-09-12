@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -35,6 +36,10 @@ export default function CookieConsent() {
       const timer = setTimeout(() => setShowBanner(true), 1000);
       return () => clearTimeout(timer);
     }
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('openCookieSettings', handleOpenSettings);
+    };
   }, []);
 
   const saveConsent = (prefs: CookiePreferences) => {
@@ -54,6 +59,13 @@ export default function CookieConsent() {
 
   const handleSaveSettings = () => {
     saveConsent(preferences);
+  };
+
+  const handleClearPreferences = () => {
+    localStorage.removeItem('cookie-consent');
+    setPreferences({ essential: true, analytics: false, marketing: false });
+    setShowSettings(false);
+    setShowBanner(true);
   };
 
   if (!showBanner && !showSettings) return null;
@@ -174,12 +186,18 @@ export default function CookieConsent() {
                 </div>
               </div>
 
-              <div className="p-5 border-t border-zinc-100 bg-zinc-50">
+              <div className="p-5 border-t border-zinc-100 bg-zinc-50 flex flex-col gap-3">
                 <button
                   onClick={handleSaveSettings}
                   className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-[15px] py-4 rounded-xl transition-colors"
                 >
                   Save Preferences
+                </button>
+                <button
+                  onClick={handleClearPreferences}
+                  className="w-full bg-white hover:bg-zinc-50 border border-zinc-200 text-red-600 font-bold text-[15px] py-3 rounded-xl transition-colors"
+                >
+                  Clear Preferences
                 </button>
               </div>
             </motion.div>
